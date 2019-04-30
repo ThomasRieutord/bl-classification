@@ -113,15 +113,24 @@ if storeImages:
 # Get flat clusters
 #-------------------
 
-target_nb_clusters=3
-print("Looking for ",target_nb_clusters)
-zoneID=cha.fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
+K_values = np.arange(2,8)
+CH_values = []
+S_values = []
+DB_values = []
+zoneIDs = []
 
+for target_nb_clusters in K_values:
+	print(" - Looking for ",target_nb_clusters,"clusters")
+	zoneID=cha.fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
+	zoneIDs.append(zoneID)
+	
+	clusterZTview(t_common,z_common,zoneID,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
+	
+	cluster2Dview(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],zoneID,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
 
-draw_clusterlabels(t_common,z_common,zoneID,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
-
-cluster2Dview(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],zoneID,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
-
+print("Plot results of",len(zoneIDs),"classifications")
+cluster2Dview_multi(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],zoneIDs,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
+clusterZTview_multi(t_common,z_common,zoneIDs,storeImages=storeImages,fmtImages=fmtImages,figureDir=figureDir)
 
 # Quality scores
 #----------------
