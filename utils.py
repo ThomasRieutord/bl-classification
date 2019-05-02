@@ -188,6 +188,327 @@ def load_dataset(datasetname,t0=dt.datetime(2015,2,19)):
 	return X_raw,predictors,interpMethod.lower(),z_common,t_common,zmax,Dz,Dt
 
 
+def instrumentkind(path):
+    '''Give the type of instrument that made the measures in the netcdf file.
+    This type of instrument is used as a standard ID in other functions like quickplot.
+    
+    [IN]
+		- path (str): path of the file
+		
+	[OUT]
+		- (str): instrument ID'''
+    fichier=path.split('/')[-1]
+    csltiymdv = fichier.split('_')
+    return csltiymdv[4].lower()
+
+
+def scandate(path):
+    ''' Détermine la date et l'heure du scan contenu dans le fichier à partir
+    de son nom. C'est la date de la première mesure. Retourne un datetime. L'heure donnée est en UTC
+    
+    [IN]
+		- path (str): chemin du fichier
+		
+	[OUT]
+		- (datetime): date du fichier'''
+    fichier=path.split('/')[-1]
+    campaign,site,lab,techno,instru,yyyy,mmdd,v01 = fichier.split('_')
+    return dt.datetime(int(yyyy),int(mmdd[0:2]),int(mmdd[2:4])) 
+
+
+def extractOneFile(path,vartoextract='Default',altmax=4000,convert_to_dB=False):
+	'''Extract data from a netcdf file at the given path.
+	Some variables are extracted by default by it is highly recommended
+	to precise them. Input files must match the GMEI standard.
+	The name of the files is standardized as such:
+
+	CAMPAIGNYYYY_SITE_LAB_TECHNO_INSTRUMENTID_YYYY_MMDD_VERSION.nc
+	
+	[IN]
+		- path (str): path of the file to be read
+		- vartoextract (str, opt): variables to extract (depends on the kind of intrument)
+		- altmax (float): highest altitude to use (m agl)
+		- option (str, opt) : caractères supplémentaires pour trier
+		
+	[OUT]
+		- Taxis (np.array[nt] of datetimes): time vector (datetime objects)
+		- Zaxis (np.array[nalt]): altitude vector (m agl)
+		- dataOut (np.array[nt,nalt]): first variable extracted'''
+	
+	# General infos
+	defautvartoextract={'ct25k':'BT','hatpro': 'T'}
+	
+	instru=instrumentkind(path)
+	data= nc.Dataset(path)
+	
+	# Time axis
+	Taxis= []
+	t0=scandate(path)
+	imin=0
+	imax=len(data.variables['time'])
+	for i in range(len(data.variables['time'])):
+		Taxis.append(t0+dt.timedelta(seconds=int(data.variables['time'][i])))
+	
+	# Altitude axis
+	altmaxdex = np.where(data.variables['Z'][:]<altmax)[0][-1]+1
+	Zaxis = data.variables['Z'][:altmaxdex]
+	
+	# Data extraction
+	if vartoextract=='Default':
+		vartoextract = defautvartoextract[instru]
+	
+	if convert_to_dB:
+		dataOut=10*np.log10(data.variables[vartoextract][:,:altmaxdex])
+	else:
+		dataOut=np.array(data.variables[vartoextract][:,:altmaxdex])
+	
+	return Taxis,Zaxis,dataOut
+
+#--------------------------------------------------
+# 	Prepare the data
+#--------------------------------------------------
+
+def generategrid(datemin,datemax,altmax,Dz,Dt,altmin=0):
+	''' Generate a time-altitude grid at the given resolution.
+	
+	[IN]
+		- datemin (datetime): starting time of the grid
+		- datemax (datetime): ending time of the grid
+		- altmax (float): maximum altitude of the grid (m agl).
+		- Dz (float): spatiale resolution (m).
+		- Dt (float or timedelta): time resolution (minutes).
+		- altmin (float): maximum altitude of the grid (m agl). Default is 0.
+		
+	[OUT]
+		- z_values (np.array[n_z]): altitude vector of the grid (m agl)
+		- t_values (list[n_t] of datetime): time vector of the grid
+	'''
+	if isinstance(datemax,dt.timedelta):
+		datefin=datemin+datemax
+	else:
+		datefin=datemax
+	
+	if isinstance(Dt,dt.timedelta):
+		td=Dt
+	else:
+		td=dt.timedelta(minutes=Dt)
+	
+	n_t = int((datefin-datemin).total_seconds()/td.total_seconds())
+	n_z = int(altmax/Dz)
+	
+	z_values = np.arange(altmin,altmax,Dz)
+	
+	t_values = []
+	for k in range(n_t):
+		t_values.append(datemin+k*td)
+	
+	return z_values,t_values
+
+def estimateongrid(z_target,t_target,z_known,t_known,V_known,method='cubic',decibel=False,crossval=False,nfolds=10):
+	'''Interpolate the data on a target grid knowning it on another grid.
+	Grids are time-altitude.
+	
+	Interpolation is necessary for two reasons: getting rid of missing
+	values and have the information of all instrument on a common grid.
+	
+	[IN]
+		- z_target (np.array[n1_z]): altitude vector of the target grid (m agl)
+		- t_target (list[n1_t] of datetime): time vector of the target grid
+		- z_known (np.array[n0_z]): altitude vector of the known grid (m agl)
+		- t_known (list[n0_t] of datetime): time vector of the known grid
+		- V_known (np.array[n0_t,n0_z]): data values on the known grid
+	[IN,OPT]
+		- method (str): interpolation method
+		- decibel (bool): set to True if the data is in decibel: the data is converted to physical unit before interpolation and converted back to decibel after.
+		- crossval (bool): if True, evaluate the uncertainty of the estimation by Kfold cross-validation
+		- nfolds (int): if crossval=True, number of folds in Kfold cross-validation
+		
+	[OUT]
+		- V_target (np.array[n1_t,n1_z]): valeurs sur la grilles cible'''
+	
+	if decibel:
+		print("V_known<=0:",np.sum(V_known<=0))
+		V_known=np.exp(V_known/10)
+		print("Nan of Inf after exp:",np.sum(np.isnan(V_known))+np.sum(np.isinf(V_known)))
+	
+	# Switch from format "data=f(coordinates)" to format "obs=f(predictors)"
+	st_known = dtlist2slist(t_known)
+	st_target = dtlist2slist(t_target)
+	X_known,Y_known=grid_to_scatter(st_known,z_known,V_known)
+	X_target=grid_to_scatter(st_target,z_target)
+	
+	
+	#### ========= Estimation with 4-nearest neighbors
+	if method=="nearestneighbors":
+		from sklearn.neighbors import KNeighborsRegressor
+		KNN=KNeighborsRegressor(n_neighbors=4)
+		
+		# NaN are removed
+		X_known = X_known[~np.isnan(Y_known),:]
+		Y_known = Y_known[~np.isnan(Y_known)]
+		KNN.fit(X_known,Y_known)
+		Y_target = KNN.predict(X_target)
+	else:
+	#### ========= Estimation with 2D interpolation
+		from scipy.interpolate import griddata
+	
+		# NaN are removed
+		X_known = X_known[~np.isnan(Y_known),:]
+		Y_known = Y_known[~np.isnan(Y_known)]
+		Y_target = griddata(X_known,Y_known,X_target,method=method)
+	
+	
+	if crossval:
+		from sklearn.model_selection import KFold
+		
+		kf=KFold(n_splits=nfolds,shuffle=True,random_state=14)
+		kf_error = []
+		for train_dex,test_dex in kf.split(X_known):
+			Y_pred = griddata(X_known[train_dex],Y_known[train_dex],X_known[test_dex],method=method)
+			kf_error.append(np.sqrt(np.mean((Y_pred-Y_known[test_dex])**2)))
+		prediction_error = np.nanmean(np.array(kf_error))
+		print("prediction_error =",prediction_error)
+		
+	# Mise en forme sortie
+	t1,z1,V_target = scatter_to_grid(X_target,Y_target)
+	
+	if decibel:
+		print("V_target<=0:",np.sum(V_target<=0))
+		V_target = 10*np.log10(V_target+np.finfo(float).eps)
+		print("Nan or Inf after log:",np.sum(np.isnan(V_target))+np.sum(np.isinf(V_target)))
+	
+	# Sanity checks
+	if np.shape(V_target) != (np.size(st_target),np.size(z_target)):
+		raise Exception("Output has not expected shape : shape(st_target)",np.shape(st_target),"shape(z_target)",np.shape(z_target),"shape(V_target)",np.shape(V_target))
+	if (np.abs(t1-st_target)>10**(-10)).any():
+		raise Exception("Time vector has been altered : max(|t1-t_target|)=",np.max(np.abs(t1-st_target)))
+	if (np.abs(z1-z_target)>10**(-10)).any():
+		raise Exception("Altitude vector has been altered : max(|z1-z_target|)=",np.max(np.abs(z1-z_target)))
+	
+	if crossval:
+		result = V_target,prediction_error
+	else:
+		result = V_target
+	
+	return result
+
+
+def deletelines(X_raw,nan_max=None,return_mask=False,transpose=False,verbose=False):
+	'''Remove lines containing many Not-a-Number values from the dataset.
+	
+	All lines containing nan_max missing values or more are also removed.
+	By default, nan_max=p-1 (lines with only NaN or only but 1 are removed)
+	
+	[IN]
+		- X_raw (np.array[N_raw,p]): original dataset.
+		- nan_max (int, opt): maximum number of missing value tolerated. Default is p-1
+		- return_mask (bool): if True, returns the mask at True for deleted lines
+		- transpose (bool): if True, removes the columns instead of the lines
+		- verbose (bool): if True, does more prints
+	
+	[OUT]
+		- X (np.array[N,p]): filtered dataset.
+		- delete_mask (np.array[N_raw] of bool): if return_mask=True, mask at True for deleted lines'''
+	
+	if transpose:
+		X_raw=X_raw.T
+	
+	N_raw,p = np.shape(X_raw)
+	if nan_max is None:
+		nan_max=p-1
+	
+	if verbose:
+		print("Delete all lines with ",nan_max,"missing values or more.")
+	to_delete = []
+	numberOfNan=np.zeros(N_raw)
+	for i in range(N_raw):
+		numberOfNan[i]=np.sum(np.isnan(X_raw[i,:]))
+		if numberOfNan[i]>=nan_max:
+			if verbose:
+				print("Too many NaN for obs ",i,". Removed")
+			to_delete.append(i)
+	if verbose:
+		print("to_delete=",to_delete,". Total:",len(to_delete))
+	X=np.delete(X_raw,to_delete,axis=0)
+	
+	if transpose:
+		X=X.T
+	
+	if return_mask:
+		delete_mask=np.full(N_raw,False,dtype=bool)
+		delete_mask[to_delete]=True
+		result= X,delete_mask
+	else:
+		result=X
+	
+	return result
+
+
+def write_dataset(datasetpath,X_raw,t_common,z_common):
+	'''Write the data prepared for the classification in a netcdf file
+	with the grid on which it has been estimated.
+	Dataset name must of the form:
+		'DATASET_CAMPAGNE_PREDICTEURS_INTERPOLATION_dz***_dt***_zmax***.nc'
+	
+	[IN]
+		- datasetpath (str): path and name of the netcdf file to be created.
+		- X_raw (np.array[N,p]): data matrix (not normalised)
+		- t_common (np.array[Nt] of datetime): time vector of the grid
+		- z_common (np.array[Nz] of datetime): altitude vector of the grid
+			Must have N=Nz*Nt
+	
+	[OUT]
+		- msg (str): message saying the netcdf file has been successfully written.
+	'''
+	
+	import time
+	
+	N,p=X_raw.shape
+	if N!=len(t_common)*len(z_common):
+		raise ValueError("Shapes of X_raw and grid do not match. Dataset NOT CREATED.")
+	
+	n_invalidValues = np.sum(np.isnan(X_raw))+np.sum(np.isinf(X_raw))
+	if n_invalidValues>0:
+		raise ValueError(n_invalidValues,"invalid values. Dataset NOT CREATED.")
+	
+	dataset = nc.Dataset(datasetpath,'w')
+	
+	# General information
+	dataset.description="Dataset cleaned and prepared in order to make unsupervised boundary layer classification. The file is named according to the variables present in the dataset, their vertical and time resolution (all avariable are on the same grid) and the upper limit of the grid."
+	dataset.source = 'Meteo-France CNRM/GMEI/LISA'
+	dataset.history = 'Created '+time.ctime(time.time())
+	dataset.contactperson = 'Thomas Rieutord (thomas.rieutord@meteo.fr)'
+	
+	
+	# In[117]:
+	
+	# Coordinate declaration
+	dataset.createDimension('individuals',N)
+	dataset.createDimension('predictors',p)
+	dataset.createDimension('time',len(t_common))
+	dataset.createDimension('altitude',len(z_common))
+	
+	
+	# Fill in altitude vector
+	altitude = dataset.createVariable('altitude',np.float64, ('altitude',))
+	altitude[:] = z_common
+	altitude.units = "Meter above ground level (m)"
+	
+	# Fill in time vector
+	Time = dataset.createVariable('time',np.float64, ('time',))
+	Time[:] = dtlist2slist(t_common)
+	Time.units = "Second since midnight (s)"
+	
+	# Fill in the design matrix
+	designMatrix = dataset.createVariable('X_raw',np.float64, ('individuals','predictors'))
+	designMatrix[:,:] = X_raw
+	designMatrix.units = "Different for each column. Adimensionalisation is necessary before comparing columns."
+	
+	# Closing the netcdf file
+	dataset.close()
+	
+	return "Dataset sucessfully written in the file "+datasetpath
+
 def normalization(X_raw,strategy,return_toolbox=False):
 	'''Normalize a raw observation matrix according to the specified strategy.
 	If strategy='meanstd', it removes the mean and divide by the standard deviation, columnwise.
@@ -268,7 +589,6 @@ def cluster2Dview(variable1,varname1,variable2,varname2,zoneID,clustersIDs=None,
 	if varname2 not in DicLeg.keys():
 		DicLeg[varname2]=varname2
 	if np.min(zoneID)!=0:
-		print("Cluster labels didn't start from 0")
 		zoneID-=np.min(zoneID)
 	
 	# Number of clusters
@@ -394,7 +714,6 @@ def clusterZTview(t_values,z_values,zoneID,delete_mask=None,clustersIDs=None,sto
 		'CP':'ys'}
 	
 	if np.min(zoneID)!=0:
-		print("Cluster labels didn't start from 0")
 		zoneID-=np.min(zoneID)
 	
 	# Number of clusters
@@ -488,7 +807,6 @@ def clusterZTview_multi(t_values,z_values,zoneIDs,delete_mask=None,storeImages=F
 	TZ = grid_to_scatter(st_values,z_values)
 	
 	n_kvalues = len(zoneIDs)
-	print("n_kvalues =",n_kvalues)
 	nl=int(np.sqrt(n_kvalues))
 	nc=int(np.ceil(n_kvalues/nl))
 	
@@ -496,7 +814,6 @@ def clusterZTview_multi(t_values,z_values,zoneIDs,delete_mask=None,storeImages=F
 	fig, axes = plt.subplots(nrows=nl, ncols=nc, figsize=(12, 8),sharex=True,sharey=True)
 	
 	for ink in range(n_kvalues):
-		print("nl=",nl,"nc=",nc,"ink=",ink)
 		zoneID = zoneIDs[ink]
 			
 		if np.min(zoneID)!=0:
