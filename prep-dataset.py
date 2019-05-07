@@ -150,6 +150,38 @@ def prepdataset(CEI_file,MWR_file,z_max=2000,predictors = ['BT','T'], dt_common=
 	
 	return np.sum(np.isnan(X_raw))+np.sum(np.isinf(X_raw))
 
+def check_availability(CEI_dir,MWR_dir):
+	'''Check the date of all the files in the directory and return the 
+	list of days when they are both available.
+	
+	[IN]
+		- CEI_dir (str): path to the directory where ceilometer files are stored.
+		- MWR_dir (str): path to the directory where radiometer files are stored.
+		
+	[OUT]
+		- daybothavail (list of datetime): day where both instruments are available
+	'''
+	import os
+	
+	ls_mwr=os.listdir(MWR_dir)
+	ls_mwr.sort()
+	ls_cei=os.listdir(CEI_dir)
+	ls_cei.sort()
+	
+	t_min=min([scandate(ls_cei[0]),scandate(ls_mwr[0])])
+	t_max=max([scandate(ls_cei[-1]),scandate(ls_mwr[-1])])
+	
+	daybothavail=[]
+	for d in range(int((t_max-t_min).total_seconds()/(3600*24))):
+		day = t_min + dt.timedelta(days=d)
+		f_CEI=scandate_inv(day)
+		f_MWR=scandate_inv(day,campaign='PASSY2015',site='SALLANCHES',techno='MWR',instru='HATPRO')
+		if (f_CEI in ls_cei) and (f_MWR in ls_mwr):
+			daybothavail.append(day)
+	
+	return daybothavail
+	
+	
 
 if __name__=='__main__':
 	# SETTINGS
@@ -174,9 +206,12 @@ if __name__=='__main__':
 	# Inputs
 	#--------
 	day=dt.datetime(2015,2,19)
-	dataDir = "original_data/"
+	CEI_dir = "/cnrm/lisa/data1/MANIP/PASSY-DATA-MAIN/Telemetre/netcdfCT25K/"
+	MWR_dir = "/cnrm/lisa/data1/Rieutord/PASSY_vrac/Radiometre/"#"original_data/
 	CEI_file = "PASSY_PASSY_CNRM_CEILOMETER_CT25K_2015_0219_V01.nc"
 	MWR_file = "PASSY2015_SALLANCHES_CNRM_MWR_HATPRO_2015_0219_V01.nc"
+	
+	daybothavail = check_availability(CEI_dir,MWR_dir)
 	
 	n_invalid=prepdataset(dataDir+CEI_file,dataDir+MWR_file, saveNetcdf=True)
 	print(n_invalid,"invalid values (NaN or Inf) after preparation of the dataset")

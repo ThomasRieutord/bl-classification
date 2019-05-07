@@ -30,7 +30,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import datetime as dt
 from sklearn import metrics
-from utils import *
+from scipy.cluster.hierarchy import linkage,dendrogram,fcluster
+from utils import load_dataset,normalization,clusterZTview,cluster2Dview,clusterZTview_multi,cluster2Dview_multi
 
 def blclassification(path_to_dataset,linkageStategy="average",metricName="cityblock",normStrategy='meanstd',storeImages=False,fmtImages='.png',figureDir=""):
 	'''Perform boundary layer classificationwith ascending hierarchical
@@ -95,19 +96,18 @@ def blclassification(path_to_dataset,linkageStategy="average",metricName="citybl
 	# HIERARCHICAL CLUSTERING
 	#=========================
 	
-	from scipy.cluster import hierarchy as cha
 	
 	# Get hierarchy
 	#---------------
 	
 	
-	linkageMatrix=cha.linkage(X,method=linkageStategy,metric=metricName)
+	linkageMatrix=linkage(X,method=linkageStategy,metric=metricName)
 	
 	
 	#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 	plt.figure()
 	plt.title(u"Dendrogramme")
-	cha.dendrogram(linkageMatrix,p=10,truncate_mode='level',distance_sort='ascending',color_threshold=2.25,no_labels=True)
+	dendrogram(linkageMatrix,p=10,truncate_mode='level',distance_sort='ascending',color_threshold=2.25,no_labels=True)
 	plt.ylabel("Cophenetic distance")
 	plt.xlabel("Observations")
 	plt.show(block=False)
@@ -126,7 +126,7 @@ def blclassification(path_to_dataset,linkageStategy="average",metricName="citybl
 	zoneIDs = []
 	
 	for target_nb_clusters in K_values:
-		zoneID=cha.fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
+		zoneID=fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
 		zoneIDs.append(zoneID)
 		
 		# Quality scores

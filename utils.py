@@ -203,17 +203,29 @@ def instrumentkind(path):
 
 
 def scandate(path):
-    ''' Détermine la date et l'heure du scan contenu dans le fichier à partir
-    de son nom. C'est la date de la première mesure. Retourne un datetime. L'heure donnée est en UTC
+    ''' Give date and time when the measurement has been done, from its name.
+    It is the date of the first measure. Hours are UTC.
     
     [IN]
-		- path (str): chemin du fichier
+		- path (str): path to the file
 		
 	[OUT]
-		- (datetime): date du fichier'''
+		- (datetime): date of the file'''
     fichier=path.split('/')[-1]
     campaign,site,lab,techno,instru,yyyy,mmdd,v01 = fichier.split('_')
     return dt.datetime(int(yyyy),int(mmdd[0:2]),int(mmdd[2:4])) 
+
+def scandate_inv(day,campaign='PASSY',site='PASSY',lab='CNRM',techno='CEILOMETER',instru='CT25K',v01='V01.nc'):
+	''' Give the name of the file corresponding to the measurement at the given date.
+	
+	[IN]
+		- day (datetime): date of the file
+		
+	[OUT]
+		- filename (str): name of the file'''
+	yyyy=day.strftime('%Y')
+	mmdd=day.strftime('%m%d')
+	return '_'.join([campaign,site,lab,techno,instru,yyyy,mmdd,v01])
 
 
 def extractOneFile(path,vartoextract='Default',altmax=4000,convert_to_dB=False):
