@@ -136,10 +136,8 @@ else:
 
 print("\nInvalid values after interpolation:")
 # Radiometer
-temperature[:,0]=np.nan		# First level is bad
 if dz_common=='MWR' and np.sum(np.isnan(temperature[:,1:]))==0:
 	T_query=temperature
-	T_query[:,0]=np.nan		# First level is bad
 else:
 	T_query=estimateongrid(z_common,t_common,z_mwr,t_mwr,temperature,method=interpMethod,crossval=False)
 

@@ -30,18 +30,59 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import *
-from bl-classification import blclassification
-from prep-dataset import prepdataset,check_availability
+from blclassification import blclassification
+from prepdataset import prepdataset,check_availability
 
 
-CEI_dir = "/cnrm/lisa/data1/MANIP/PASSY-DATA-MAIN/Telemetre/netcdfCT25K/"
-MWR_dir = "/cnrm/lisa/data1/Rieutord/PASSY_vrac/Radiometre/"#"original_data/
+CEI_dir = "original_data/"
+MWR_dir = "original_data/"
 
-daybothavail = check_availability(CEI_dir,MWR_dir)
+#daybothavail = check_availability(CEI_dir,MWR_dir)
+daybothavail = [dt.datetime(2015,2,18),dt.datetime(2015,2,19),dt.datetime(2015,2,20)]
+n_K=6
+CH_index=[]
+S_index=[]
 
 for day in daybothavail:
 	print("\n-- Day",day)
 	CEI_file = scandate_inv(day)
 	MWR_file = scandate_inv(day,campaign='PASSY2015',site='SALLANCHES',techno='MWR',instru='HATPRO')
-	print("CEI_file",CEI_file)
-	print("MWR_file",MWR_file)
+	
+	dailydir=day.strftime('%Y%m%d')+"/"
+	if not os.path.isdir(dailydir):
+		os.mkdir(dailydir)
+	
+	datasetpath=prepdataset(CEI_dir+CEI_file,MWR_dir+MWR_file,saveNetcdf=True,storeImages=True,outputDir=dailydir)
+	
+	if os.path.isfile(datasetpath):
+		CH_values,S_values = blclassification(datasetpath,day,figureDir=dailydir,storeImages=True)
+	else:
+		CH_values=np.full(n_K,np.nan)
+		S_values=np.full(n_K,np.nan)
+	CH_index.append(CH_values)
+	S_index.append(S_index)
+
+CH_index=np.array(CH_index)
+S_index=np.array(S_index)
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+plt.figure()
+plt.title("Evolution of CH index")
+plt.plot(daybothavail,np.mean(CH_index,axis=1),'k--',linewidth=2,label="K="+str(k+2))
+for k in range(n_K):
+	plt.plot(daybothavail,CH_index[:,k],'-o',linewidth=2,label="K="+str(k+2))
+plt.gcf().autofmt_xdate()
+plt.grid()
+plt.legend(loc='best')
+plt.show(block=False)
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+plt.figure()
+plt.title("Evolution of silouhette index")
+plt.plot(daybothavail,np.mean(S_index,axis=1),'k--',linewidth=2,label="K="+str(k+2))
+for k in range(n_K):
+	plt.plot(daybothavail,S_index[:,k],'-o',linewidth=2,label="K="+str(k+2))
+plt.gcf().autofmt_xdate()
+plt.grid()
+plt.legend(loc='best')
+plt.show(block=False)
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+input("\n Press Enter to exit (close down all figures)\n")
