@@ -4,7 +4,7 @@ This test case is taken from the Passy-2015 experiment.
 
 Data
 -----
-Data are stored in netcdf files, in the "datasets" folder. They are extracted from a field experiment called Passy-2015
+Data are stored in netcdf files, in the "datasets" and "original_data" folder. They are extracted from a field experiment called Passy-2015
 and they are properties of Météo-France. They must be used only to run the code in this repository.
 
 Language and versions
