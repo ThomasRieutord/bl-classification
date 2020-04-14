@@ -1,0 +1,6 @@
+local/*
+*.ipynb_checkpoints
+*.idx
+*.egg-info/
+*__pycache__/
+*.swp

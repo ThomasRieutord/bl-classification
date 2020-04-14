@@ -1,20 +1,131 @@
-# bl-classification
-Experimental code to perform atmospheric boundary layer classification from ground-based remote sensors.
-This test case is taken from the Passy-2015 experiment.
+BLCovid: atmospheric Boundary Layer Classification made during Covid-19 outbreak
+===================================
 
-Data
------
-Data are stored in netcdf files, in the "datasets" and "original_data" folder. They are extracted from a field experiment called Passy-2015
-and they are properties of Météo-France. They must be used only to run the code in this repository.
+What is BLCovid?
+-----------------
+BLCovid is a free software to perform supervised and unsupervised atmospheric boundary layer classification from synergistic set of ground-based remote sensing measurements.
+So far, it uses only backscatter profiles (measured by aerosol lidars or ceilometers) and temperature profiles (measured by microwave radiometers).
+It returns quicklooks of boundary layer features identified in the classification (mixed layer, clouds, etc.)
 
-Language and versions
-----------------------
-This code is in Python 3.5. It requires the following packages to run correctly:
-  * numpy (1.11.2)
-  * scipy (0.17.1)
-  * scikit-learn (0.19.1)
-  * matplotlib (1.5.1)
+![Alt](blclassif_example.png)
+
+How to use it?
+---------------
+The BLCovid package can be installed by following the **installation instructions below**.
+Once installed, you will find ready-to-use scripts in the `examples` directory.
+Tutorial dedicated to different steps of the program can be found in Jupyter notebook in the `notebooks` directory.
+
 
 Contacts
 ---------
-thomas.rieutord@meteo.fr
+This software is edited by Meteo-France.
+  * Thomas Rieutord (CNRM) : thomas.rieutord@meteo.fr
+
+Licence
+--------
+This software is under [CeCILL](https://cecill.info/licences.en.html) licence (open source, French equivalent to GNU/GPL licence).
+Terms are in the LICENCE.txt file.
+
+Installation
+=============
+
+Installing dependencies
+------------------------
+
+### With Conda (recommended)
+Conda is a package manager very helpful in Python.
+If you do not have `conda`, you can download it [here](https://docs.conda.io/projects/conda/en/latest/index.html).
+
+The advantage of using `conda` the way described here is to isolate the python configuration needed for BL classification from the rest your current configuration.
+
+```bash
+conda create -n blcovid python=3.7   # Create a new environnement with Python 3.7
+conda activate blcovid               # Enter this environment
+```
+
+Now the text "(blcovid)" should appear before your prompt
+```
+conda install --file requirements.txt
+```
+
+### With pip
+For an installation with `pip`, follow these instructions:
+
+```bash
+pip install -r requirements.txt 
+```
+
+Installing the KABL package
+---------------------------
+This can be done only with `pip`.
+In the directory where is the `setup.py`, run:
+```bash
+pip install -e .
+```
+
+Alternative installation
+-------------------------
+If the previous methods do not work, try to reproduce the environment from the `blcovid-explicit-env.txt` file:
+```bash
+conda create --name blcovid --file blcovid-explicit-env.txt
+```
+This method is usually not cross platform, but it gives an alternative way of installation.
+
+Use BLCovid
+---------
+Once the installation is ready (prompt should display `(blcovid)` if you are using conda), you can execute the ready-to-use script in the `examples` directory.
+For example, to execute data preparation and unsupervised classification run:
+```bash
+python try_unsupervised_classification.py
+```
+Such programs are volontarily short and call self-documented functions.
+
+If some of your tests do not work because of missing file, run the shell script `run_tests.sh` in the directory `blcovid/`.
+It will create an example of file needed for all steps of the program.
+Such example files are usually put as default values in the settings.
+
+
+More information about the package and its parameters are given below.
+
+The package
+============
+
+Repository organisation
+---------------
+The repository is organised in 4 directories:
+  * `blcovid` contains the source code of the package
+  * `examples` contains ready-to-use examples of boundary layer classification
+  * `notebooks` contains the Jupyter notebook serving as tutorial for each step of the program
+  * `working-directories` contains the intermediate directories required to store inputs/outputs of differents codes
+
+The following figure shows the role of each directories as well as data fluxes:
+
+![Alt](repo_orga.png)
+
+
+Source code description
+---------------
+
+BLCovid package is located in the `blcovid` directory. It contains 8 Python source codes :
+  * `prepdataset.py`: module to prepare the original data for the classification.
+  * `unsupervised.py`: module to make unsupervised classification of a prepared dataset.
+  * `blidentification.py`: user-interactive program to identify the boundary layer features generated by unsupervised classification.
+  * `supervisedfit.py`: module to train supervised classifier from identified boundary layer features.
+  * `supervisedpred.py`: module to make supervised classification of a prepared dataset.
+  * `graphics.py`: module containing all graphics.
+  * `utils.py`: module containing basic functions used in more than one module.
+
+Here is the dependency graph:
+
+![Alt](dependency_graph.png)
+
+
+Automatic classification
+---------------
+
+As you may have notice, one of the source code (`blidentification.py`) requires human supervison.
+As a consequence, it cannot be included into an automatic classification.
+Two paths are automatic: the unsupervised path (prepare the data and classify without supervision) and the supervised path (prepare the data and use a previously trained classifier).
+They are summarized by the following figure:
+
+![Alt](multidays_paths.png)
