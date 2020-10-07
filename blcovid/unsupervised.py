@@ -16,38 +16,6 @@ Functions are sorted in complexity order:
  |  Meteo-France                           |
  |  CNRM/GMEI/LISA                         |
  +-----------------------------------------+
- 
-Copyright Meteo-France, 2020, [CeCILL-C](https://cecill.info/licences.en.html) license (open source)
-
-This module is a computer code that is part of the Boundary Layer
-Classification program. This program performs atmospheric boundary layer
-classification using machine learning algorithms.
-
-This software is governed by the CeCILL-C license under French law and
-abiding by the rules of distribution of free software.  You can  use,
-modify and/ or redistribute the software under the terms of the CeCILL-C 
-license as circulated by CEA, CNRS and INRIA at the following URL
-"http://www.cecill.info".
-
-As a counterpart to the access to the source code and  rights to copy,
-modify and redistribute granted by the license, users are provided only
-with a limited warranty  and the software's author,  the holder of the
-economic rights,  and the successive licensors  have only  limited
-liability.
-
-In this respect, the user's attention is drawn to the risks associated
-with loading,  using,  modifying and/or developing or reproducing the
-software by the user in light of its specific status of free software,
-that may mean  that it is complicated to manipulate,  and  that  also
-therefore means  that it is reserved for developers  and  experienced
-professionals having in-depth computer knowledge. Users are therefore
-encouraged to load and test the software's suitability as regards their
-requirements in conditions enabling the security of their systems and/or 
-data to be ensured and,  more generally, to use and operate it in the
-same conditions as regards security.
-
-The fact that you are presently reading this means that you have had
-knowledge of the CeCILL-C license and that you accept its terms.
 """
 
 import os
@@ -63,250 +31,394 @@ from sklearn.cluster import KMeans
 from blcovid import utils
 from blcovid import graphics
 
-def ublc(datasetpath,algo="hierarchical-average.euclidean",target_nb_clusters=4,
-            outputDir='../working-directories/2-unidentified-labels/',saveNetcdf=False,plot_on=False):
-    '''Unsupervised Boundary Layer Classification.
+
+def ublc(
+    datasetpath,
+    algo="hierarchical-average.euclidean",
+    target_nb_clusters=4,
+    outputDir="../working-directories/2-unidentified-labels/",
+    saveNetcdf=False,
+    plot_on=False,
+):
+    """Unsupervised Boundary Layer Classification.
     
     Perform boundary layer classification with ascending hierarchical
     clustering on one of the devoted dataset.
     
-    [IN]
-        - datasetpath (str): path where is located the dataset
-        - algo (str): identifier of the classification algorithm
-                Must be of the form algoFamily-param1.param2.param3...
-        - target_nb_clusters (int): number of desired clusters
-        - outputDir (str): the directory where will be stored the outputs
-        - saveNetcdf (bool): if False, the prepared dataset is not saved
-        - plot_on (bool): if False, all graphics are disabled
     
-    [OUT]
-        - zoneID (np.array): array of cluster labels'''
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset
     
+    algo: str, default="hierarchical-average.euclidean"
+        Identifier of the classification algorithm
+        Must be of the form algoFamily-param1.param2.param3...
+    
+    target_nb_clusters: int, default=4
+        Number of desired clusters
+    
+    outputDir: str
+        Directory where will be stored the outputs
+    
+    saveNetcdf: bool, default=False
+        If False, the labelled dataset is not saved
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    zoneID: ndarray
+        Cluster labels
+    
+    If saveNetcdf=True, saves labelled dataset in `outputDir`
+    
+    If plot_on=True, displays figures of the classification
+    
+    
+    Example
+    -------
+    >>> from blcovid.unsupervised import ublc
+    >>> dataDir = "../working-directories/1-unlabelled-datasets/"
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> labels = ublc(dataDir + datasetname,algo="hierarchical-average.cityblock")
+    >>> labels
+    array([1, 1, 1, ..., 3, 3, 3], dtype=int32)
+    >>> labels.shape
+    (2112,)
+    """
+
     # LOADING AND CHECKING DATASET
-    #==============================
-    
+    # ==============================
+
     # Loading
     # --------
-    X_raw,t_common,z_common=utils.load_dataset(datasetpath,variables_to_load=['X_raw','time','altitude'])
+    X_raw, t_common, z_common = utils.load_dataset(
+        datasetpath, variables_to_load=["X_raw", "time", "altitude"]
+    )
+    
+    if plot_on:
+        graphics.quicklook_dataset(datasetpath)
 
     # Normalization
     # -------------
-    scaler=StandardScaler()
+    scaler = StandardScaler()
     scaler.fit(X_raw)
-    X=scaler.transform(X_raw)
+    X = scaler.transform(X_raw)
 
     # PERFORM CLASSIFICATION
-    #========================
-    
-    algoFamily,algoParams=algo.split('-')
-    
-    if algoFamily=='hierarchical':
+    # ========================
+
+    algoFamily, algoParams = algo.split("-")
+
+    if algoFamily == "hierarchical":
         # Hierarchical clustering
         # ---------------
-        
-        linkageStategy,metricName=algoParams.split('.')
-        
-        linkageMatrix=hc.linkage(X,method=linkageStategy,metric=metricName)
-        
+
+        linkageStategy, metricName = algoParams.split(".")
+
+        linkageMatrix = hc.linkage(X, method=linkageStategy, metric=metricName)
+
         if plot_on:
-            graphics.plot_dendrogram(linkageMatrix,algoParams)
-        
-        zoneID=hc.fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
-    
-    elif algoFamily=='kmeans':
+            graphics.plot_dendrogram(linkageMatrix, algoParams)
+
+        zoneID = hc.fcluster(linkageMatrix, t=target_nb_clusters, criterion="maxclust")
+
+    elif algoFamily == "kmeans":
         # Kmeans clustering
         # ---------------
-        
-        km=KMeans(n_clusters=target_nb_clusters,init=algoParams)
+
+        km = KMeans(n_clusters=target_nb_clusters, init=algoParams)
         km.fit(X)
-        
-        zoneID=km.labels_
+
+        zoneID = km.labels_
     else:
-        raise ValueError("Wrong algo argument:",algo)
-    
-    if np.min(zoneID)!=0:
-        zoneID-=np.min(zoneID)
-    
+        raise ValueError("Wrong algo argument:", algo)
+
+    if np.min(zoneID) != 0:
+        zoneID -= np.min(zoneID)
+
     # Vizualisation of clusters
-    #===========================
-    
-    datasetname=datasetpath.split('/')[-1]
-    prefx,prepkey,dotnc = datasetname.split('.')
-    
+    # ===========================
+
+    datasetname = datasetpath.split("/")[-1]
+    prefx, prepkey, dotnc = datasetname.split(".")
+
     if plot_on:
-        campg,pred,intp,dz,dt,zm=prepkey.split('_')
-        predictors=pred.split('-')
-        graphics.clusterZTview(t_common,z_common,zoneID,fileName="UBLC_timeAlti_"+prefx[-9:])
-        graphics.cluster2Dview(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],
-                                zoneID,fileName="UBLC_featureSpace_"+prefx[-9:])
-    
+        campg, pred, intp, dz, dt, zm = prepkey.split("_")
+        predictors = pred.split("-")
+        graphics.clusterZTview(
+            t_common, z_common, zoneID, fileName="UBLC_timeAlti_" + prefx[-9:]
+        )
+        graphics.cluster2Dview(
+            X_raw[:, 0],
+            predictors[0],
+            X_raw[:, 1],
+            predictors[1],
+            zoneID,
+            fileName="UBLC_featureSpace_" + prefx[-9:],
+        )
+
     # Write labels in netCDF
-    #----------------------
+    # ----------------------
     if saveNetcdf:
-        unidfname="UNIDFLABELS_"+prefx[-9:]+"."+prepkey+".nc"
-        utils.add_rawlabels_to_netcdf(datasetpath,outputDir+unidfname,zoneID,quiet=False)
-    
+        unidfname = "UNIDFLABELS_" + prefx[-9:] + "." + prepkey + ".nc"
+        utils.add_rawlabels_to_netcdf(
+            datasetpath, outputDir + unidfname, zoneID, quiet=False
+        )
+
     return zoneID
 
 
-
-def ublc_manyclusters(datasetpath,algo="hierarchical-average.euclidean",plot_on=True):
-    '''Repeat classification for several number of clusters. The output
+def ublc_manyclusters(datasetpath, algo="hierarchical-average.euclidean", plot_on=True):
+    """Repeat classification for several number of clusters. The output
     is thus the classification scores, not the labels.
     
-    [IN]
-        - datasetpath (str): path where is located the dataset
-        - algo (str): identifier of the classification algorithm
-                Must be of the form algoFamily-param1.param2.param3...
-        - plot_on (bool): if False, all graphics are disabled
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset
     
-    [OUT]
-        - CH_values (np.array[6]): Calinski-Harabaz scores when the number of clusters ranges from 2 to 7
-        - S_values (np.array[6]): Silhouette scores when the number of clusters ranges from 2 to 7
-        - DB_values (np.array[6]): Davies-Bouldin scores when the number of clusters ranges from 2 to 7'''
+    algo: str, default="hierarchical-average.euclidean"
+        Identifier of the classification algorithm
+        Must be of the form algoFamily-param1.param2.param3...
+    
+    plot_on: bool, default=True
+        If False, all graphics are disabled
     
     
+    Returns
+    -------
+    CH_values: list of length 6, dtype=float
+        Calinski-Harabaz scores when the number of clusters ranges from 2 to 7
+    
+    S_values: list of length 6, dtype=float
+        Silhouette scores when the number of clusters ranges from 2 to 7
+    
+    DB_values: list of length 6, dtype=float
+        Davies-Bouldin scores when the number of clusters ranges from 2 to 7
+    
+    
+    Example
+    -------
+    >>> from blcovid.unsupervised import ublc_manyclusters
+    >>> dataDir = "../working-directories/1-unlabelled-datasets/"
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> ch,s,db = ublc_manyclusters(dataDir + datasetname, algo="hierarchical-average.cityblock")
+    >>> ch
+    [714.5367454983027, 1588.0731546364725, 1119.6997509463438, 1021.069973037269, 1009.4771697162553, 913.2436698606014]
+    >>> len(db)
+    6
+    """
+
     # LOADING AND CHECKING DATASET
-    #==============================
-    
+    # ==============================
+
     # Loading
     # --------
-    X_raw,t_common,z_common=utils.load_dataset(datasetpath,variables_to_load=['X_raw','time','altitude'])
+    X_raw, t_common, z_common = utils.load_dataset(
+        datasetpath, variables_to_load=["X_raw", "time", "altitude"]
+    )
 
     # Normalization
     # -------------
-    scaler=StandardScaler()
+    scaler = StandardScaler()
     scaler.fit(X_raw)
-    X=scaler.transform(X_raw)
+    X = scaler.transform(X_raw)
 
     # PERFORM CLASSIFICATION
-    #========================
-    
-    algoFamily,algoParams=algo.split('-')
-    
-    K_values = np.arange(2,8)
+    # ========================
+
+    algoFamily, algoParams = algo.split("-")
+
+    K_values = np.arange(2, 8)
     CH_values = []
     S_values = []
     DB_values = []
     zoneIDs = []
-    
-    if algoFamily=='hierarchical':
+
+    if algoFamily == "hierarchical":
         # Hierarchical clustering
         # ---------------
-        
-        linkageStategy,metricName=algoParams.split('.')
-        
-        linkageMatrix=hc.linkage(X,method=linkageStategy,metric=metricName)
-        
+
+        linkageStategy, metricName = algoParams.split(".")
+
+        linkageMatrix = hc.linkage(X, method=linkageStategy, metric=metricName)
+
         if plot_on:
-            graphics.plot_dendrogram(linkageMatrix,algoParams)
-        
+            graphics.plot_dendrogram(linkageMatrix, algoParams)
+
         for target_nb_clusters in K_values:
-            zoneID=hc.fcluster(linkageMatrix,t=target_nb_clusters,criterion='maxclust')
-            if np.min(zoneID)!=0:
-                zoneID-=np.min(zoneID)
+            zoneID = hc.fcluster(
+                linkageMatrix, t=target_nb_clusters, criterion="maxclust"
+            )
+            if np.min(zoneID) != 0:
+                zoneID -= np.min(zoneID)
             zoneIDs.append(zoneID)
-        
+
             # Quality scores
-            #----------------
-            
+            # ----------------
+
             # Calinski-Harabaz index
-            ch_score=metrics.calinski_harabasz_score(X,zoneID)
+            ch_score = metrics.calinski_harabasz_score(X, zoneID)
             CH_values.append(ch_score)
-            
+
             # Silhouette score
-            s_score=metrics.silhouette_score(X,zoneID,metric=metricName)
+            s_score = metrics.silhouette_score(X, zoneID, metric=metricName)
             S_values.append(s_score)
-            
+
             # Davies-Bouldin index
-            db_score=metrics.davies_bouldin_score(X,zoneID)
+            db_score = metrics.davies_bouldin_score(X, zoneID)
             DB_values.append(db_score)
-    
-    elif algoFamily=='kmeans':
+
+    elif algoFamily == "kmeans":
         # Kmeans clustering
         # ---------------
-        
+
         for target_nb_clusters in K_values:
-            km=KMeans(n_clusters=target_nb_clusters,init=algoParams)
+            km = KMeans(n_clusters=target_nb_clusters, init=algoParams)
             km.fit(X)
-            zoneID=km.labels_
-            if np.min(zoneID)!=0:
-                zoneID-=np.min(zoneID)
+            zoneID = km.labels_
+            if np.min(zoneID) != 0:
+                zoneID -= np.min(zoneID)
             zoneIDs.append(zoneID)
-        
+
             # Quality scores
-            #----------------
-            
+            # ----------------
+
             # Calinski-Harabaz index
-            ch_score=metrics.calinski_harabasz_score(X,zoneID)
+            ch_score = metrics.calinski_harabasz_score(X, zoneID)
             CH_values.append(ch_score)
-            
+
             # Silhouette score
-            s_score=metrics.silhouette_score(X,zoneID)
+            s_score = metrics.silhouette_score(X, zoneID)
             S_values.append(s_score)
-            
+
             # Davies-Bouldin index
-            db_score=metrics.davies_bouldin_score(X,zoneID)
+            db_score = metrics.davies_bouldin_score(X, zoneID)
             DB_values.append(db_score)
-        
+
     else:
-        raise ValueError("Wrong algo argument:",algo)
+        raise ValueError("Wrong algo argument:", algo)
 
     # Vizualisation of clusters
-    #===========================
-    
-    datasetname=datasetpath.split('/')[-1]
-    prefx,prepkey,dotnc = datasetname.split('.')
-    
-    if plot_on:
-        campg,pred,intp,dz,dt,zm=prepkey.split('_')
-        predictors=pred.split('-')
-        graphics.clusterZTview_manyclusters(t_common,z_common,zoneIDs,fileName="ZTgrid_"+algo)
-        graphics.cluster2Dview_manyclusters(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],
-                zoneIDs,fileName="featSpace_"+algo)
-        graphics.scores_manyclusters(K_values,[CH_values,S_values,DB_values],
-                            ['Calinski-Harabasz','Silhouette','Davies-Bouldin'])
-    
-    return CH_values,S_values,DB_values
+    # ===========================
 
-def ublc_manyalgo(datasetpath,algo_list=None,plot_on=False):
-    '''Repeat classification for several algorithms and several number
+    datasetname = datasetpath.split("/")[-1]
+    prefx, prepkey, dotnc = datasetname.split(".")
+
+    if plot_on:
+        campg, pred, intp, dz, dt, zm = prepkey.split("_")
+        predictors = pred.split("-")
+        graphics.clusterZTview_manyclusters(
+            t_common, z_common, zoneIDs, fileName="ZTgrid_" + algo
+        )
+        graphics.cluster2Dview_manyclusters(
+            X_raw[:, 0],
+            predictors[0],
+            X_raw[:, 1],
+            predictors[1],
+            zoneIDs,
+            fileName="featSpace_" + algo,
+        )
+        graphics.scores_manyclusters(
+            K_values,
+            [CH_values, S_values, DB_values],
+            ["Calinski-Harabasz", "Silhouette", "Davies-Bouldin"],
+        )
+
+    return CH_values, S_values, DB_values
+
+
+def ublc_manyalgo(datasetpath, algo_list=None, plot_on=False):
+    """Repeat classification for several algorithms and several number
     of clusters. The output is thus the classification scores, not the labels.
     
-    [IN]
-        - datasetpath (str): path where is located the dataset
-        - algo_list (list[Na] of str): list of algorithm identifiers
-        - plot_on (bool): if False, all graphics are disabled
     
-    [OUT]
-        - CH_values (np.array[Na,6]): Calinski-Harabaz scores when the number of clusters ranges from 2 to 7
-        - S_values (np.array[Na,6]): Silhouette scores when the number of clusters ranges from 2 to 7
-        - DB_values (np.array[Na,6]): Davies-Bouldin scores when the number of clusters ranges from 2 to 7
-    '''
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset
     
+    algo_list: list, dtype=str
+        List of all algorithm identifiers to be tested
+        Default is ["hierarchical-average.cityblock", "hierarchical-average.euclidean",
+        "hierarchical-complete.cityblock", "hierarchical-complete.euclidean",
+        "hierarchical-ward.euclidean", "kmeans-random"]
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    CH_values: ndarray of shape (len(algo_list),6), dtype=float
+        Calinski-Harabaz scores when the number of clusters ranges from 2 to 7
+    
+    S_values: ndarray of shape (len(algo_list),6), dtype=float
+        Silhouette scores when the number of clusters ranges from 2 to 7
+    
+    DB_values: ndarray of shape (len(algo_list),6), dtype=float
+        Davies-Bouldin scores when the number of clusters ranges from 2 to 7
+    
+    algo_list: list, dtype=str
+        List of all algorithm identifiers that have been tested
+    
+    
+    Example
+    -------
+    >>> from blcovid.unsupervised import ublc_manyalgo
+    >>> dataDir = "../working-directories/1-unlabelled-datasets/"
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> ch,s,db,default_algo_list = ublc_manyalgo(dataDir + datasetname)
+    Algo= hierarchical-average.cityblock ( 1 / 6 )
+    Algo= hierarchical-average.euclidean ( 2 / 6 )
+    Algo= hierarchical-complete.cityblock ( 3 / 6 )
+    Algo= hierarchical-complete.euclidean ( 4 / 6 )
+    Algo= hierarchical-ward.euclidean ( 5 / 6 )
+    Algo= kmeans-random ( 6 / 6 )
+    Best in average for CH: kmeans-random
+    Best in average for S: hierarchical-average.euclidean
+    Best in average for DB: hierarchical-average.euclidean
+    >>> ch.shape
+    (6, 6)
+    >>> default_algo_list
+    ['hierarchical-average.cityblock', 'hierarchical-average.euclidean', 'hierarchical-complete.cityblock', 'hierarchical-complete.euclidean', 'hierarchical-ward.euclidean', 'kmeans-random']
+        """
+
     if algo_list is None:
-        algo_list = ["hierarchical-average.cityblock","hierarchical-average.euclidean",
-                    "hierarchical-complete.cityblock","hierarchical-complete.euclidean",
-                    "hierarchical-ward.euclidean","kmeans-random"]
-    
-    CH = np.zeros((len(algo_list),6))
-    S = np.zeros((len(algo_list),6))
-    DB = np.zeros((len(algo_list),6))
+        algo_list = [
+            "hierarchical-average.cityblock",
+            "hierarchical-average.euclidean",
+            "hierarchical-complete.cityblock",
+            "hierarchical-complete.euclidean",
+            "hierarchical-ward.euclidean",
+            "kmeans-random",
+        ]
+
+    CH = np.zeros((len(algo_list), 6))
+    S = np.zeros((len(algo_list), 6))
+    DB = np.zeros((len(algo_list), 6))
     for i in range(len(algo_list)):
-        print("Algo=",algo_list[i],'(',i+1,'/',len(algo_list),')')
-        CH_values,S_values,DB_values = ublc_manyclusters(datasetpath,algo=algo_list[i],plot_on=plot_on)
-        CH[i,:]=CH_values
-        S[i,:]=S_values
-        DB[i,:]=DB_values
-    
-    ibest=np.argmax(np.mean(CH,axis=1))
-    print("Best in average for CH:",algo_list[ibest])
-    ibest=np.argmax(np.mean(S,axis=1))
-    print("Best in average for S:",algo_list[ibest])
-    ibest=np.argmin(np.mean(DB,axis=1))
-    print("Best in average for DB:",algo_list[ibest])
-    
-    return CH,S,DB,algo_list
+        print("Algo=", algo_list[i], "(", i + 1, "/", len(algo_list), ")")
+        CH_values, S_values, DB_values = ublc_manyclusters(
+            datasetpath, algo=algo_list[i], plot_on=plot_on
+        )
+        CH[i, :] = CH_values
+        S[i, :] = S_values
+        DB[i, :] = DB_values
+
+    ibest = np.argmax(np.mean(CH, axis=1))
+    print("Best in average for CH:", algo_list[ibest])
+    ibest = np.argmax(np.mean(S, axis=1))
+    print("Best in average for S:", algo_list[ibest])
+    ibest = np.argmin(np.mean(DB, axis=1))
+    print("Best in average for DB:", algo_list[ibest])
+
+    return CH, S, DB, algo_list
+
 
 ########################
 #      TEST BENCH      #
@@ -317,32 +429,41 @@ def ublc_manyalgo(datasetpath,algo_list=None,plot_on=False):
 # For interactive mode
 # >> python -i prepdataset.py
 #
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    linkageStategy="average"
-    metricName="cityblock"
+    linkageStategy = "average"
+    metricName = "cityblock"
     dataDir = "../working-directories/1-unlabelled-datasets/"
-    datasetname="DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     outputDir = "../working-directories/2-unidentified-labels/"
-    
+
     graphics.figureDir = outputDir
-    graphics.storeImages=False
-    
-    
+    graphics.storeImages = False
+
     # Test of ublc
-    #------------------------
+    # ------------------------
     print("\n --------------- Test of ublc")
-    ublc(dataDir+datasetname,algo='hierarchical-average.cityblock',
-            outputDir=outputDir,plot_on=True,saveNetcdf=True)
-    
+    ublc(
+        dataDir + datasetname,
+        algo="hierarchical-average.cityblock",
+        outputDir=outputDir,
+        plot_on=True,
+        saveNetcdf=True,
+    )
+
     # Test of ublc_manyclusters
-    #------------------------
+    # ------------------------
     print("\n --------------- Test of ublc_manyclusters")
-    CH_values,S_values,DB_values = ublc_manyclusters(dataDir+datasetname,
-                algo='hierarchical-complete.cityblock',plot_on=True)
+    CH_values, S_values, DB_values = ublc_manyclusters(
+        dataDir + datasetname, algo="hierarchical-complete.cityblock", plot_on=True
+    )
 
     # Test of ublc_manyalgo
-    #------------------------
+    # ------------------------
     print("\n --------------- Test of ublc_manyalgo")
-    CH_values,S_values,DB_values,algo_list = ublc_manyalgo(dataDir+datasetname,plot_on=False)
-    graphics.internal_quality_map(S_values,DB_values,['Silhouette','Davies-Bouldin'],algo_list)
+    CH_values, S_values, DB_values, algo_list = ublc_manyalgo(
+        dataDir + datasetname, plot_on=False
+    )
+    graphics.internal_quality_map(
+        S_values, DB_values, ["Silhouette", "Davies-Bouldin"], algo_list
+    )
