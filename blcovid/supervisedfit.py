@@ -15,37 +15,6 @@ Functions are sorted in complexity order:
  |  CNRM/GMEI/LISA                         |
  +-----------------------------------------+
  
-Copyright Meteo-France, 2020, [CeCILL-C](https://cecill.info/licences.en.html) license (open source)
-
-This module is a computer code that is part of the Boundary Layer
-Classification program. This program performs atmospheric boundary layer
-classification using machine learning algorithms.
-
-This software is governed by the CeCILL-C license under French law and
-abiding by the rules of distribution of free software.  You can  use,
-modify and/ or redistribute the software under the terms of the CeCILL-C 
-license as circulated by CEA, CNRS and INRIA at the following URL
-"http://www.cecill.info".
-
-As a counterpart to the access to the source code and  rights to copy,
-modify and redistribute granted by the license, users are provided only
-with a limited warranty  and the software's author,  the holder of the
-economic rights,  and the successive licensors  have only  limited
-liability.
-
-In this respect, the user's attention is drawn to the risks associated
-with loading,  using,  modifying and/or developing or reproducing the
-software by the user in light of its specific status of free software,
-that may mean  that it is complicated to manipulate,  and  that  also
-therefore means  that it is reserved for developers  and  experienced
-professionals having in-depth computer knowledge. Users are therefore
-encouraged to load and test the software's suitability as regards their
-requirements in conditions enabling the security of their systems and/or 
-data to be ensured and,  more generally, to use and operate it in the
-same conditions as regards security.
-
-The fact that you are presently reading this means that you have had
-knowledge of the CeCILL-C license and that you accept its terms.
 """
 
 import numpy as np
@@ -57,152 +26,231 @@ from blcovid import utils
 from blcovid import graphics
 
 
-def train_sblc(idflabelspath,algo,outputDir='../working-directories/4-pre-trained-classifiers/',savePickle=False):
-    '''Train the specified algorithm on the specified dataset. Save the
+def train_sblc(
+    idflabelspath,
+    algo,
+    outputDir="../working-directories/4-pre-trained-classifiers/",
+    savePickle=False,
+):
+    """Train the specified algorithm on the specified dataset. Save the
     trained classifier into a Pickle object.
     
-    [IN]
-        - idflabelspath (str): path to the dataset with identified labels
-        - algo (str): name of the supervised algorithm to use. Possible choices:
-            RandomForestClassifier, KNeighborsClassifier, DecisionTreeClassifier, AdaBoostClassifier, LabelSpreading
-            For more details, refer to the documentation of scikit-learn 0.22
-        - outputDir (str): the directory where will be stored the outputs
-        - savePickle (bool): if False, the trained classifier is not saved
     
-    [OUT] Generate algo.pkl object in outputDir
-        - clf (sklearn object): trained classifier. To be used with "predict" method
-    '''
+    Parameters
+    ----------
+    idflabelspath: str
+        Path to the dataset with identified labels
+    
+    algo: str
+        Name of the supervised algorithm to use. Possible choices:
+        {RandomForestClassifier, KNeighborsClassifier, DecisionTreeClassifier,
+        AdaBoostClassifier, LabelSpreading}
+        For more details, refer to the documentation of scikit-learn 0.22
+    
+    outputDir: str
+        Directory where will be stored the outputs
+    
+    savePickle: bool, default=False
+        If False, the trained classifier is not saved
     
     
+    Returns
+    -------
+    Generate `algo.pkl` object in `outputDir`
+    
+    clf: sklearn Classifier object
+        Trained classifier. To be used with `predict` method
+    
+    
+    Example
+    -------
+    >>> from blcovid.supervisedfit import train_sblc
+    >>> inputDir = "../working-directories/3-identified-labels/"
+    >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> clf = train_sblc(inputDir + idfname, algo ="KNeighborsClassifier")
+    Classifier not saved because savePickle= False
+    >>> clf.classes_
+    array([0, 1, 2], dtype=int32)
+    """
+
     # Load dataset
     # ------------
-    X_raw,z_common,t_common,rawlabl, lablid, lablnames = utils.load_dataset(idflabelspath,
-            variables_to_load=['X_raw','altitude','time','rawlabels'],fields_to_load=['label_identification','label_long_names'])
+    X_raw, z_common, t_common, rawlabl, lablid, lablnames = utils.load_dataset(
+        idflabelspath,
+        variables_to_load=["X_raw", "altitude", "time", "rawlabels"],
+        fields_to_load=["label_identification", "label_long_names"],
+    )
 
     # Instantiate classifiers
     # -----------------------
-    if algo in ['rf','RandomForest','RandomForestClassifier']:
+    if algo in ["rf", "RandomForest", "RandomForestClassifier"]:
         from sklearn.ensemble import RandomForestClassifier
-        clf = RandomForestClassifier(n_estimators=50,max_depth=3)
-    elif algo in ['knn','nearestneighbors','KNeighborsClassifier']:
+
+        clf = RandomForestClassifier(n_estimators=50, max_depth=3)
+    elif algo in ["knn", "nearestneighbors", "KNeighborsClassifier"]:
         from sklearn.neighbors import KNeighborsClassifier
+
         clf = KNeighborsClassifier(n_neighbors=6)
-    elif algo in ['dt','DecisionTree','DecisionTreeClassifier']:
+    elif algo in ["dt", "DecisionTree", "DecisionTreeClassifier"]:
         from sklearn.tree import DecisionTreeClassifier
+
         clf = DecisionTreeClassifier(max_depth=5)
-    elif algo in ['ab','adab','AdaBoost','AdaBoostClassifier']:
+    elif algo in ["ab", "adab", "AdaBoost", "AdaBoostClassifier"]:
         from sklearn.ensemble import AdaBoostClassifier
         from sklearn.tree import DecisionTreeClassifier
-        clf = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=4),n_estimators=50)
-    elif algo in ['ls','LabelSpreading']:
+
+        clf = AdaBoostClassifier(
+            base_estimator=DecisionTreeClassifier(max_depth=4), n_estimators=50
+        )
+    elif algo in ["ls", "LabelSpreading"]:
         from sklearn.semi_supervised import LabelSpreading
-        clf = LabelSpreading(kernel='knn')
+
+        clf = LabelSpreading(kernel="knn")
     else:
-        raise ValueError("Not supported algorithm:",algo)
-    
-    
+        raise ValueError("Not supported algorithm:", algo)
+
     # Fit supervised model
     # ---------------------
-    clf.fit(X_raw,rawlabl)
-    
+    clf.fit(X_raw, rawlabl)
+
     # Exports
     # -----------
-    clf.label_identification_=lablid
-    clf.label_long_names_=lablnames
-    
-    idflabelsname = idflabelspath.split('/')[-1]
-    prefx,prepkey,dotnc = idflabelsname.split('.')
-    dropfilename=str(clf).split('(')[0]+"."+prepkey+".pkl"
-    
+    clf.label_identification_ = lablid
+    clf.label_long_names_ = lablnames
+
+    idflabelsname = idflabelspath.split("/")[-1]
+    prefx, prepkey, dotnc = idflabelsname.split(".")
+    dropfilename = str(clf).split("(")[0] + "." + prepkey + ".pkl"
+
     if savePickle:
-        fc=open(outputDir+dropfilename,'wb')
-        pickle.dump(clf,fc)
+        fc = open(outputDir + dropfilename, "wb")
+        pickle.dump(clf, fc)
         fc.close()
-        print("Trained classifier saved in ",outputDir+dropfilename)
+        print("Trained classifier saved in ", outputDir + dropfilename)
     else:
-        print("Classifier not saved because savePickle=",savePickle)
-    
+        print("Classifier not saved because savePickle=", savePickle)
+
     return clf
-    
-    
 
 
-def traintest_sblc(idflabelspath,cv_test_size=0.2,n_random_splits=10,plot_on=False):
-    '''Train and test several algorithms on the specified dataset.
+def traintest_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=False):
+    """Train and test several algorithms on the specified dataset.
     The outputs are thus the performance of each algorithms.
     
     List of tested algorithms: RandomForestClassifier,KNeighborsClassifier,
     DecisionTreeClassifier,AdaBoostClassifier,LabelSpreading (total 5)
     Parameters of each algorithms must be modified inside the function.
     
-    [IN]
-        - idflabelspath (str): path to the dataset with identified labels
-        - cv_test_size (float): proportion of the dataset used for testing the algorithm by cross-validation. Must be between 0 and 1.
-        - n_random_splits (int): number of time the random split between test and train is repeated
-        - plot_on (bool): if False, all graphics are disabled
     
-    [OUT]
-        - accuracies (np.array[5,n_random_splits]): mean accuracy score (proportion of well classified individuals, the closer to 1 the better) for each classifier and each random split 
-        - chronos (np.array[5,n_random_splits]): time to train the classifier and compute the accuracy score
-        - classifiers_keys (list[5] of str): names of the tested classifiers
-    '''
+    Parameters
+    ----------
+    idflabelspath: str
+        Path to the dataset with identified labels
     
+    cv_test_size: float in ]0,1[, default is 0.2
+        Proportion of the dataset used for testing the algorithm by
+        cross-validation. Must be between 0 and 1.
+    
+    n_random_splits: int, default=10
+        Number of times the random split between test and train is repeated
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    accuracies: ndarray of shape (5,n_random_splits)
+        Mean accuracy score (proportion of well classified individuals, the
+        closer to 1 the better) for each classifier and each random split 
+    
+    chronos: ndarray of shape (5,n_random_splits)
+        Time to train the classifier and compute the accuracy score
+    
+    classifiers_keys: list of length 5, dtype=str
+        Names of the tested classifiers
+    
+    
+    Example
+    -------
+    >>> from blcovid.supervisedfit import traintest_sblc
+    >>> inputDir = "../working-directories/3-identified-labels/"
+    >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> acc, tic, cl = traintest_sblc(inputDir + idfname, plot_on=True)
+    TRAINING CLASSIFIERS...
+    Classifier 0 / 5 RandomForestClassifier
+    Classifier 1 / 5 KNeighborsClassifier
+    Classifier 2 / 5 DecisionTreeClassifier
+    Classifier 3 / 5 AdaBoostClassifier
+    Classifier 4 / 5 LabelSpreading
+    Prepare comparison graphics...
+    Classifier 0 / 5 RandomForestClassifier
+    Classifier 1 / 5 KNeighborsClassifier
+    Classifier 2 / 5 DecisionTreeClassifier
+    Classifier 3 / 5 AdaBoostClassifier
+    Classifier 4 / 5 LabelSpreading
+    >>> acc.shape
+    (5, 10)
+    """
+
     from sklearn.model_selection import train_test_split
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.ensemble import AdaBoostClassifier
     from sklearn.semi_supervised import LabelSpreading
-    
+
     # Load dataset
     # ------------
-    X_raw,z_common,t_common,rawlabl = utils.load_dataset(idflabelspath,
-                variables_to_load=['X_raw','altitude','time','rawlabels'])
-    
-    
+    X_raw, z_common, t_common, rawlabl = utils.load_dataset(
+        idflabelspath, variables_to_load=["X_raw", "altitude", "time", "rawlabels"]
+    )
+
     # Instantiate classifiers
     # -----------------------
-    
-    rfc = RandomForestClassifier(n_estimators=50,max_depth=3)
-    knn=KNeighborsClassifier(n_neighbors=6)
+
+    rfc = RandomForestClassifier(n_estimators=50, max_depth=3)
+    knn = KNeighborsClassifier(n_neighbors=6)
     dtc = DecisionTreeClassifier(max_depth=5)
-    abc = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=4),n_estimators=50)
-    lsc = LabelSpreading(kernel='knn')
-    
-    
+    abc = AdaBoostClassifier(
+        base_estimator=DecisionTreeClassifier(max_depth=4), n_estimators=50
+    )
+    lsc = LabelSpreading(kernel="knn")
+
     # Summarize performances
     # ----------------------
-    
-    print('TRAINING CLASSIFIERS...')
-    classifiers =[rfc,knn,dtc,abc,lsc]
-    classifiers_keys =[str(clf).split('(')[0] for clf in classifiers]
-    chronos = np.zeros((len(classifiers),n_random_splits))
-    accuracies = np.zeros((len(classifiers),n_random_splits))
-    
+
+    print("TRAINING CLASSIFIERS...")
+    classifiers = [rfc, knn, dtc, abc, lsc]
+    classifiers_keys = [str(clf).split("(")[0] for clf in classifiers]
+    chronos = np.zeros((len(classifiers), n_random_splits))
+    accuracies = np.zeros((len(classifiers), n_random_splits))
+
     for icl in range(len(classifiers)):
         clf = classifiers[icl]
-        print("Classifier",icl,"/",len(classifiers),classifiers_keys[icl])
+        print("Classifier", icl, "/", len(classifiers), classifiers_keys[icl])
         for ird in range(n_random_splits):
-            X_train, X_test, y_train, y_test = train_test_split(X_raw,rawlabl,test_size=cv_test_size, random_state=ird)
-            
-            t0=time.time()      #::::::
-            clf.fit(X_train,y_train)
-            accuracies[icl,ird]=clf.score(X_test,y_test)
-            t1=time.time()      #::::::
-            chronos[icl,ird]=t1-t0
-    
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_raw, rawlabl, test_size=cv_test_size, random_state=ird
+            )
+
+            t0 = time.time()  #::::::
+            clf.fit(X_train, y_train)
+            accuracies[icl, ird] = clf.score(X_test, y_test)
+            t1 = time.time()  #::::::
+            chronos[icl, ird] = t1 - t0
+
     if plot_on:
-        graphics.estimator_quality(accuracies,chronos,classifiers_keys)
-    
-    
+        graphics.estimator_quality(accuracies, chronos, classifiers_keys)
+
     # Display the borders
     # -------------------
-    
+
     if plot_on:
-        graphics.comparisonSupervisedAlgo(X_raw,classifiers)
-    
-    
-    return accuracies,chronos,classifiers_keys
+        graphics.comparisonSupervisedAlgo(X_raw, classifiers)
+
+    return accuracies, chronos, classifiers_keys
+
 
 ########################
 #      TEST BENCH      #
@@ -213,23 +261,23 @@ def traintest_sblc(idflabelspath,cv_test_size=0.2,n_random_splits=10,plot_on=Fal
 # For interactive mode
 # >> python -i supervisedfit.py
 #
-if __name__ == '__main__':
-    
-    inputDir = "../working-directories/3-identified-labels/"
-    idfname="IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
-    outputDir="../working-directories/4-pre-trained-classifiers/"
-    
-    graphics.storeImages=True
-    graphics.figureDir = outputDir
-    
-    
-    # Test of train_sblc
-    #------------------------
-    print("\n --------------- Test of train_sblc")
-    clf=train_sblc(inputDir+idfname,algo='ls',outputDir=outputDir,savePickle=True)
-    
-    # Test of traintest_sblc
-    #------------------------
-    print("\n --------------- Test of traintest_sblc")
-    acc,tic,cl=traintest_sblc(inputDir+idfname,plot_on=True)
+if __name__ == "__main__":
 
+    inputDir = "../working-directories/3-identified-labels/"
+    idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    outputDir = "../working-directories/4-pre-trained-classifiers/"
+
+    graphics.storeImages = True
+    graphics.figureDir = outputDir
+
+    # Test of train_sblc
+    # ------------------------
+    print("\n --------------- Test of train_sblc")
+    clf = train_sblc(
+        inputDir + idfname, algo="ls", outputDir=outputDir, savePickle=True
+    )
+
+    # Test of traintest_sblc
+    # ------------------------
+    print("\n --------------- Test of traintest_sblc")
+    acc, tic, cl = traintest_sblc(inputDir + idfname, plot_on=True)
