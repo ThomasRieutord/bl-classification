@@ -16,38 +16,6 @@ Functions are sorted in complexity order:
  |  Meteo-France                           |
  |  CNRM/GMEI/LISA                         |
  +-----------------------------------------+
- 
-Copyright Meteo-France, 2020, [CeCILL-C](https://cecill.info/licences.en.html) license (open source)
-
-This module is a computer code that is part of the Boundary Layer
-Classification program. This program performs atmospheric boundary layer
-classification using machine learning algorithms.
-
-This software is governed by the CeCILL-C license under French law and
-abiding by the rules of distribution of free software.  You can  use,
-modify and/ or redistribute the software under the terms of the CeCILL-C 
-license as circulated by CEA, CNRS and INRIA at the following URL
-"http://www.cecill.info".
-
-As a counterpart to the access to the source code and  rights to copy,
-modify and redistribute granted by the license, users are provided only
-with a limited warranty  and the software's author,  the holder of the
-economic rights,  and the successive licensors  have only  limited
-liability.
-
-In this respect, the user's attention is drawn to the risks associated
-with loading,  using,  modifying and/or developing or reproducing the
-software by the user in light of its specific status of free software,
-that may mean  that it is complicated to manipulate,  and  that  also
-therefore means  that it is reserved for developers  and  experienced
-professionals having in-depth computer knowledge. Users are therefore
-encouraged to load and test the software's suitability as regards their
-requirements in conditions enabling the security of their systems and/or 
-data to be ensured and,  more generally, to use and operate it in the
-same conditions as regards security.
-
-The fact that you are presently reading this means that you have had
-knowledge of the CeCILL-C license and that you accept its terms.
 """
 
 # ### Load packages
@@ -60,84 +28,153 @@ import pickle
 from blcovid import utils
 from blcovid import graphics
 
-def check_prepkey(datasetpath,classifierpath,raise_error=True):
-    '''Check consistency between the preparation of the dataset and the
+
+def check_prepkey(datasetpath, classifierpath, raise_error=True):
+    """Check consistency between the preparation of the dataset and the
     chosen classifier. If they are not consistent, the model will not be
     able to perform the classification.
     
-    [IN]
-        - datasetpath (str): path where is located the dataset (.nc)
-        - classifierpath (str): path where is located the classifier (.pkl)
-        - raise_error (bool): if True, raise a ValueError if the classifier and the dataset don't match
     
-    [OUT]
-        - is_consistent (bool): if True, dataset and classifier are compatible
-    '''
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset (.nc)
     
-    datasetname=datasetpath.split('/')[-1]
+    classifierpath: str
+        Path where is located the classifier (.pkl)
     
-    is_consistent = datasetpath.split('.')[1]==classifierpath.split('.')[1]
-    if raise_error and not is_consistent:
-        raise ValueError('Preparation of dataset inconsistent with chosen classifier')
+    raise_error: bool, default=True
+        If True, raise a ValueError if the classifier and the dataset don't match
     
-    return is_consistent
     
+    Returns
+    -------
+    is_consistent: bool
+        If True, dataset and classifier are compatible
+    
+    
+    Examples
+    --------
+    >>> from blcovid.supervisedpred import check_prepkey
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> goodClassifier = "LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
+    >>> badClassifier = "LabelSpreading.PASSY2023_BT-T_linear_dz447_dt0_zmax2577.pkl"
+    >>> check_prepkey(datasetname, goodClassifier)
+    True
+    >>> check_prepkey(datasetname, badClassifier)
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+      File "../blcovid/supervisedpred.py", line 78, in check_prepkey
+        raise ValueError("Preparation of dataset inconsistent with chosen classifier")
+    ValueError: Preparation of dataset inconsistent with chosen classifier
+    >>> check_prepkey(datasetname, badClassifier, raise_error=False)
+    False
+    """
 
-def predict_sblc(datasetpath,classifierpath,plot_on=True):
-    '''Perform supervised classification of prepared data according to
+    datasetname = datasetpath.split("/")[-1]
+
+    is_consistent = datasetpath.split(".")[1] == classifierpath.split(".")[1]
+    if raise_error and not is_consistent:
+        raise ValueError("Preparation of dataset inconsistent with chosen classifier")
+
+    return is_consistent
+
+
+def predict_sblc(datasetpath, classifierpath, plot_on=True):
+    """Perform supervised classification of prepared data according to
     pre-trained classifiers.
     
-    [IN]
-        - datasetpath (str): path where is located the dataset (.nc)
-        - classifierpath (str): path where is located the classifier (.pkl)
-        - plot_on (bool): if False, all graphics are disabled
     
-    [OUT]
-        - rawlabl (np.array[N] of int): predicted cluster labels for the given dataset
-        - labelid (dict): dictionary associating cluster labels to boundary layer types
-    '''
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset (.nc)
     
+    classifierpath: str
+        Path where is located the classifier (.pkl)
+    
+    plot_on: bool, default=True
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    rawlabl: ndarray of shape (N,), dtype=int
+        Predicted cluster labels for the given dataset
+    
+    labelid: dict
+        Correspondance between cluster labels and boundary layer types
+    
+    
+    Examples
+    --------
+    >>> from blcovid.supervisedpred import predict_sblc
+    >>> dataDir = "../working-directories/1-unlabelled-datasets/"
+    >>> classifierDir = "../working-directories/4-pre-trained-classifiers/"
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> classifierName = "LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
+    >>> labels, labelids = predict_sblc(dataDir + datasetname, classifierDir + classifierName)
+    >>> labels
+    array([1, 1, 1, ..., 3, 3, 3], dtype=int32)
+    >>> labelids
+    {0: 'CL', 1: 'SBL', 2: 'ML', 3: 'FA'}
+    """
+
     # Loadings
     # ------------
-    
+
     # ### Load prepared data
-    
-    X_raw,t_common,z_common=utils.load_dataset(datasetpath,variables_to_load=['X_raw','time','altitude'])
-    
-    if np.isnan(X_raw).sum()>0:
-        print("WARNING:",np.isnan(X_raw).sum(),"NaN in the input dataset")
-    
-    
+
+    X_raw, t_common, z_common = utils.load_dataset(
+        datasetpath, variables_to_load=["X_raw", "time", "altitude"]
+    )
+
+    if np.isnan(X_raw).sum() > 0:
+        print("WARNING:", np.isnan(X_raw).sum(), "NaN in the input dataset")
+
     # ### Load pre-trained classifier
-    
+
     # Check if consistent with dataset
-    check_prepkey(datasetpath,classifierpath,raise_error=True)
-    
-    fc = open(classifierpath, 'rb')
-    clf = pickle.load(fc) 
+    check_prepkey(datasetpath, classifierpath, raise_error=True)
+
+    fc = open(classifierpath, "rb")
+    clf = pickle.load(fc)
     labelid = eval(clf.label_identification_)
-    
+
     # Perform classification
     # -------------------
-    
+
     # ### Just predict from the loaded classifier
-    
-    rawlabl=clf.predict(X_raw)
-    
-    
+
+    rawlabl = clf.predict(X_raw)
+
     # ### Visualize the results
     if plot_on:
-        datasetname = datasetpath.split('/')[-1]
-        prefx,prepkey,dotnc = datasetname.split('.')
+        datasetname = datasetpath.split("/")[-1]
+        prefx, prepkey, dotnc = datasetname.split(".")
         prepParams = utils.load_preparation_params(datasetname)
         predictors = prepParams[0]
-        
-        graphics.cluster2Dview(X_raw[:,0],predictors[0],X_raw[:,1],predictors[1],rawlabl,
-                    clustersIDs=labelid,displayClustersIDs=True,fileName="SBLC_featureSpace_"+prefx[-9:])
-        graphics.clusterZTview(t_common,z_common,rawlabl,
-                    clustersIDs=labelid,displayClustersIDs=True,fileName="SBLC_timeAlti_"+prefx[-9:])
-    
-    return rawlabl,labelid
+
+        graphics.cluster2Dview(
+            X_raw[:, 0],
+            predictors[0],
+            X_raw[:, 1],
+            predictors[1],
+            rawlabl,
+            clustersIDs=labelid,
+            displayClustersIDs=True,
+            fileName="SBLC_featureSpace_" + prefx[-9:],
+        )
+        graphics.clusterZTview(
+            t_common,
+            z_common,
+            rawlabl,
+            clustersIDs=labelid,
+            displayClustersIDs=True,
+            fileName="SBLC_timeAlti_" + prefx[-9:],
+        )
+
+    return rawlabl, labelid
 
 
 ########################
@@ -149,28 +186,35 @@ def predict_sblc(datasetpath,classifierpath,plot_on=True):
 # For interactive mode
 # >> python -i supervisedpred.py
 #
-if __name__ == '__main__':
-    
+if __name__ == "__main__":
+
     dataDir = "../working-directories/1-unlabelled-datasets/"
-    datasetname="DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
-    
-    classifierDir='../working-directories/4-pre-trained-classifiers/'
-    classifierName='LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl'
-    inconsistentClassifierName='LabelSpreading.PASSY2023_BT-T_linear_dz447_dt0_zmax2577.pkl'
-    
-    graphics.storeImages=True
-    graphics.figureDir="../working-directories/5-output-trainingday/"
-    
+    datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+
+    classifierDir = "../working-directories/4-pre-trained-classifiers/"
+    classifierName = "LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
+    inconsistentClassifierName = (
+        "LabelSpreading.PASSY2023_BT-T_linear_dz447_dt0_zmax2577.pkl"
+    )
+
+    graphics.storeImages = True
+    graphics.figureDir = "../working-directories/5-output-trainingday/"
+
     # Test of check_prepkey
-    #------------------------
+    # ------------------------
     print("\n --------------- Test of check_prepkey")
-    isConsistent = check_prepkey(dataDir+datasetname,classifierDir+inconsistentClassifierName,raise_error=False)
-    print('Is consistent?',isConsistent,'(must be False)')
-    isConsistent = check_prepkey(dataDir+datasetname,classifierDir+classifierName,raise_error=False)
-    print('Is consistent?',isConsistent,'(must be True)')
-    
+    isConsistent = check_prepkey(
+        dataDir + datasetname,
+        classifierDir + inconsistentClassifierName,
+        raise_error=False,
+    )
+    print("Is consistent?", isConsistent, "(must be False)")
+    isConsistent = check_prepkey(
+        dataDir + datasetname, classifierDir + classifierName, raise_error=False
+    )
+    print("Is consistent?", isConsistent, "(must be True)")
+
     # Test of predict_sblc
-    #------------------------
+    # ------------------------
     print("\n --------------- Test of predict_sblc")
-    predict_sblc(dataDir+datasetname,classifierDir+classifierName)
-    
+    predict_sblc(dataDir + datasetname, classifierDir + classifierName)
