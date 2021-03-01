@@ -2,4 +2,5 @@ numpy
 scipy
 matplotlib
 netCDF4
-scikit-learn==0.22
+notebook
+scikit-learn
