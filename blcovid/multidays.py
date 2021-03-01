@@ -24,13 +24,14 @@ Functions are sorted in complexity order:
 import os
 import numpy as np
 import datetime as dt
+import pickle
 
 
 from blcovid import utils
 from blcovid import graphics
 from blcovid.prepdataset import prepdataset
 from blcovid.unsupervised import ublc, ublc_manyclusters
-from blcovid.supervisedpred import predict_sblc
+from blcovid.supervisedpred import predict_sblc, sblc_evaluation
 
 
 def scandate_inv(
@@ -237,6 +238,7 @@ def supervised_path(
     dz_common=40,
     outputDir="../working-directories/6-output-multidays/",
     forcePrepdataset=False,
+    plot_on=True,
 ):
     """Perform unsupervised classification from original data
     
@@ -287,6 +289,9 @@ def supervised_path(
     forcePrepdataset: bool, default=False
         If False, the preparation step is skipped when the required file
         already exists
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
     
     
     Returns
@@ -360,12 +365,14 @@ def supervised_path(
             dz_common=dz_common,
         )
 
-    predict_sblc(datasetpath, classifierpath, plot_on=True)
+    md2traincc, avgprb, labelid = sblc_evaluation(datasetpath, classifierpath, plot_on=plot_on)
 
     print("Supervised classification results available in:", outputDir)
+    
+    return  md2traincc, avgprb, labelid
 
 
-def loop_unsupervised_path(
+def plotloop_unsupervised_path(
     CEI_dir,
     MWR_dir,
     algo="hierarchical-average.euclidean",
@@ -378,7 +385,8 @@ def loop_unsupervised_path(
     forcePrepdataset=False,
 ):
     """Repeat the function `unsupervised_path` over all the days when both
-    instruments are available.
+    instruments are available in order to produce graphics showing the results
+    of the unsupervised classification for each day
     
     
     Parameters
@@ -402,7 +410,7 @@ def loop_unsupervised_path(
     >>> from blcovid.multidays import loop_unsupervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
-    >>> loop_unsupervised_path(CEI_dir, MWR_dir)
+    >>> plotloop_unsupervised_path(CEI_dir, MWR_dir)
     -- Day 2015-02-10 00:00:00 ( 1 / 9 )
     Prep. data: [*******]
     Unsupervised classification results available in: ../working-directories/6-output-multidays/20150210/
@@ -447,7 +455,7 @@ def loop_unsupervised_path(
     print("End of loop. Crashes:", crashing)
 
 
-def loop_supervised_path(
+def plotloop_supervised_path(
     CEI_dir,
     MWR_dir,
     classifierpath=None,
@@ -461,7 +469,8 @@ def loop_supervised_path(
     forcePrepdataset=False,
 ):
     """Repeat the function `supervised_path` over all the days when both
-    instruments are available.
+    instruments are available in order to produce graphics showing the results
+    of the supervised classification for each day.
     
     
     Parameters
@@ -482,10 +491,10 @@ def loop_supervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import loop_supervised_path
+    >>> from blcovid.multidays import plotloop_supervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
-    >>> loop_supervised_path(CEI_dir, MWR_dir)
+    >>> plotloop_supervised_path(CEI_dir, MWR_dir)
     -- Day 2015-02-10 00:00:00 ( 1 / 9 )
     Prep. data: [*******]
     Supervised classification results available in: ../working-directories/6-output-multidays/20150210/
@@ -524,6 +533,7 @@ def loop_supervised_path(
                 dt_common=dt_common,
                 dz_common=dz_common,
                 forcePrepdataset=forcePrepdataset,
+                plot_on=True,
             )
         except FileNotFoundError:
             print("Error in the preparation of data")
@@ -531,6 +541,160 @@ def loop_supervised_path(
 
     print("End of loop. Crashes:", crashing)
 
+
+def evalloop_supervised_path(
+    CEI_dir,
+    MWR_dir,
+    classifierpath=None,
+    algo="LabelSpreading",
+    predictors=["BT", "T"],
+    interpMethod="linear",
+    z_max=2000,
+    dt_common=30,
+    dz_common=40,
+    outputDir="../working-directories/6-output-multidays/",
+    forcePrepdataset=False,
+    plot_on=True,
+):
+    """Repeat the function `supervised_path` over all the days when both
+    instruments are available in order to produce graphics showing the results
+    of the supervised classification for each day.
+    
+    
+    Parameters
+    ----------
+    CEI_file: str
+        Path to the ceilometer measurements
+    
+    MWR_file: str
+        Path to the micro-wave radiometer measurements
+    
+    All other outputs are the same as for `supervised_path` function. Please refer to its docstring.
+    
+    
+    Returns
+    -------
+    Graphics created in `outputDir`
+    
+    
+    Examples
+    --------
+    >>> from blcovid.multidays import evalloop_supervised_path
+    >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
+    >>> MWR_dir = "../working-directories/0-original-data/MWR/"
+    >>> evalloop_supervised_path(CEI_dir, MWR_dir)
+    -- Day 2015-02-10 00:00:00 ( 1 / 9 )
+    Prep. data: [*******]
+    Supervised classification results available in: ../working-directories/6-output-multidays/20150210/
+    ...
+    End of loop. Crashes: []
+    """
+    
+    # Get number of classes and label identification
+    #------------------
+    prepkey = "_".join(
+        [
+            "PASSY2015",
+            "-".join(predictors),
+            interpMethod,
+            "dz" + str(dz_common),
+            "dt" + str(dt_common),
+            "zmax" + str(z_max),
+        ]
+    )
+
+    if classifierpath is None:
+        classifierpath = "../working-directories/4-pre-trained-classifiers/" + ".".join(
+            [algo, prepkey, "pkl"]
+        )
+
+    if not os.path.isfile(classifierpath):
+        raise ValueError("Classifier does not exist:", classifierpath)
+    
+    fc = open(classifierpath, "rb")
+    clf = pickle.load(fc)
+    ref_labelid = eval(clf.label_identification_)
+    nb_classes = clf.classes_.size
+    
+    # Get days with both instruments
+    #------------------
+    daybothavail = check_availability(CEI_dir, MWR_dir)
+
+    # Start the loop
+    #------------------
+    print("SUPERVISED LOOP")
+    
+    crashing = []
+    avgprb_perday = np.zeros((len(daybothavail),nb_classes))
+    md2traincc_perday = np.zeros((len(daybothavail),nb_classes))
+    i = 0
+    for day in daybothavail:
+        i += 1
+        print("\n-- Day", day, "(", i, "/", len(daybothavail), ")")
+        
+        # ### Retrieve paths for the current day
+        CEI_file = scandate_inv(day)
+        MWR_file = scandate_inv(
+            day, campaign="PASSY2015", site="SALLANCHES", techno="MWR", instru="HATPRO"
+        )
+
+        dailydir = outputDir + day.strftime("%Y%m%d") + "/"
+        if not os.path.isdir(dailydir):
+            os.mkdir(dailydir)
+        
+        # print(
+                # CEI_dir + CEI_file,
+                # MWR_dir + MWR_file,
+                # "outputDir=",dailydir,
+                # "algo=",algo,
+                # "classifierpath=",classifierpath,
+                # "predictors=",predictors,
+                # "interpMethod=",interpMethod,
+                # "z_max=",z_max,
+                # "dt_common=",dt_common,
+                # "dz_common=",dz_common,
+                # "forcePrepdataset=",forcePrepdataset,
+                # "plot_on=",False,
+            # )
+        
+        # ### Perform classification
+        try:
+            md2traincc, avgprb, labelid = supervised_path(
+                CEI_dir + CEI_file,
+                MWR_dir + MWR_file,
+                outputDir=dailydir,
+                algo=algo,
+                classifierpath=classifierpath,
+                predictors=predictors,
+                interpMethod=interpMethod,
+                z_max=z_max,
+                dt_common=dt_common,
+                dz_common=dz_common,
+                forcePrepdataset=forcePrepdataset,
+                plot_on=False,
+            )
+        except FileNotFoundError:
+            print("Error in the preparation of data")
+            crashing.append(day)
+            md2traincc = np.full(nb_classes,np.nan)
+            avgprb = np.full(nb_classes,np.nan)
+            labelid = ref_labelid
+        
+        # ### Check and save the results
+        if labelid!=ref_labelid:
+            raise Exception("Unexpected change in label IDs")
+        
+        avgprb_perday[i-1,:] = avgprb
+        md2traincc_perday[i-1,:] = md2traincc
+    
+    # Display the results
+    #--------------------
+    if plot_on:
+        graphics.agreement_with_training(daybothavail, md2traincc_perday, ref_labelid)
+        
+    print("End of loop. Crashes:", crashing)
+    
+    return daybothavail, md2traincc_perday, avgprb_perday, ref_labelid
 
 ########################
 #      TEST BENCH      #
@@ -574,12 +738,12 @@ if __name__ == "__main__":
 
     supervised_path(CEI_file, MWR_file, outputDir=outputDir)
 
-    # Test of loop_unsupervised_path
+    # Test of plotloop_unsupervised_path
     # ------------------------
-    print("\n --------------- Test of loop_unsupervised_path")
-    loop_unsupervised_path(CEI_dir, MWR_dir, outputDir=outputDir)
+    print("\n --------------- Test of plotloop_unsupervised_path")
+    plotloop_unsupervised_path(CEI_dir, MWR_dir, outputDir=outputDir)
 
-    # Test of loop_supervised_path
+    # Test of plotloop_supervised_path
     # ------------------------
-    print("\n --------------- Test of loop_supervised_path")
-    loop_supervised_path(CEI_dir, MWR_dir, outputDir=outputDir)
+    print("\n --------------- Test of plotloop_supervised_path")
+    plotloop_supervised_path(CEI_dir, MWR_dir, outputDir=outputDir)

@@ -24,6 +24,8 @@ import os
 import numpy as np
 import datetime as dt
 import pickle
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import pairwise_distances
 
 from blcovid import utils
 from blcovid import graphics
@@ -71,9 +73,10 @@ def check_prepkey(datasetpath, classifierpath, raise_error=True):
     False
     """
 
-    datasetname = datasetpath.split("/")[-1]
+    datasetname = os.path.split(datasetpath)[-1]
+    classifiername = os.path.split(classifierpath)[-1]
 
-    is_consistent = datasetpath.split(".")[1] == classifierpath.split(".")[1]
+    is_consistent = datasetname.split(".")[1] == classifiername.split(".")[1]
     if raise_error and not is_consistent:
         raise ValueError("Preparation of dataset inconsistent with chosen classifier")
 
@@ -144,9 +147,13 @@ def predict_sblc(datasetpath, classifierpath, plot_on=True):
     # Perform classification
     # -------------------
 
+    # ### Normalization
+    scaler = clf.scaler
+    X = scaler.transform(X_raw)
+    
     # ### Just predict from the loaded classifier
 
-    rawlabl = clf.predict(X_raw)
+    rawlabl = clf.predict(X)
 
     # ### Visualize the results
     if plot_on:
@@ -176,6 +183,124 @@ def predict_sblc(datasetpath, classifierpath, plot_on=True):
 
     return rawlabl, labelid
 
+def sblc_evaluation(datasetpath, classifierpath, plot_on=False):
+    """Perform supervised classification of prepared data according to
+    pre-trained classifiers and assess the agreement with the training set.
+    
+    
+    Parameters
+    ----------
+    datasetpath: str
+        Path where is located the dataset (.nc)
+    
+    classifierpath: str
+        Path where is located the classifier (.pkl)
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    bltype_agreement: dict
+        Level of agreement with the training set for all boundary layer types
+    
+    
+    Examples
+    --------
+    >>> from blcovid.supervisedpred import sblc_evaluation
+    >>> dataDir = "../working-directories/1-unlabelled-datasets/"
+    >>> classifierDir = "../working-directories/4-pre-trained-classifiers/"
+    >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> classifierName = "LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
+    >>> classifierName = "KNeighborsClassifier.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
+    >>> avgprb, labelid = sblc_evaluation(dataDir + datasetname, classifierDir + classifierName)
+    >>> avgprb
+    array([0.95228895, 0.98532755, 0.98565797, 0.99357377])
+    >>> labelid
+    {0: 'CL', 1: 'SBL', 2: 'ML', 3: 'FA'}
+    """
+
+    # Loadings
+    # ------------
+
+    # ### Load prepared data
+
+    X_raw, t_common, z_common = utils.load_dataset(
+        datasetpath, variables_to_load=["X_raw", "time", "altitude"]
+    )
+
+    if np.isnan(X_raw).sum() > 0:
+        print("WARNING:", np.isnan(X_raw).sum(), "NaN in the input dataset")
+
+    # ### Load pre-trained classifier
+
+    # Check if consistent with dataset
+    check_prepkey(datasetpath, classifierpath, raise_error=True)
+
+    fc = open(classifierpath, "rb")
+    clf = pickle.load(fc)
+    labelid = eval(clf.label_identification_)
+
+    # Perform classification
+    # -------------------
+
+    # ### Normalization
+    scaler = clf.scaler
+    X = scaler.transform(X_raw)
+    # X = X_raw
+    
+    # ### Just predict from the loaded classifier
+    
+    rawlabl = clf.predict(X)
+    
+    
+    # ### Visualize the results
+    
+    if plot_on:
+        datasetname = datasetpath.split("/")[-1]
+        prefx, prepkey, dotnc = datasetname.split(".")
+        prepParams = utils.load_preparation_params(datasetname)
+        predictors = prepParams[0]
+
+        graphics.cluster2Dview(
+            X_raw[:, 0],
+            predictors[0],
+            X_raw[:, 1],
+            predictors[1],
+            rawlabl,
+            clustersIDs=labelid,
+            displayClustersIDs=True,
+            fileName="SBLC_featureSpace_" + prefx[-9:],
+        )
+        graphics.clusterZTview(
+            t_common,
+            z_common,
+            rawlabl,
+            clustersIDs=labelid,
+            displayClustersIDs=True,
+            fileName="SBLC_timeAlti_" + prefx[-9:],
+        )
+
+    # Evaluate the classes probabilities
+    # -------------------
+    prb = clf.predict_proba(X_raw)
+    avgprb = np.mean(prb,axis=0)
+    
+    # Evaluate the mean distance to training set cluster centers
+    # -------------------
+    md2traincc = np.zeros(clf.classes_.size)
+    traincc = clf.training_class_centroids_
+    pwd2traincc = pairwise_distances(X,traincc)
+    for k in range(clf.classes_.size):
+        idx=np.where(rawlabl==k)[0]
+        if idx.size>0:
+            md2traincc[k] = np.nanmean(pwd2traincc[idx,:], axis=0)[k]
+        else: # RuntimeWarning: Mean of empty slice
+            md2traincc[k] = np.nan
+    
+    
+    return md2traincc, avgprb, labelid
 
 ########################
 #      TEST BENCH      #

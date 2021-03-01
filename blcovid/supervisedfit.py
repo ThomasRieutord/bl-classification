@@ -21,6 +21,7 @@ import numpy as np
 import datetime as dt
 import time
 import pickle
+from sklearn.preprocessing import StandardScaler
 
 from blcovid import utils
 from blcovid import graphics
@@ -81,6 +82,12 @@ def train_sblc(
         fields_to_load=["label_identification", "label_long_names"],
     )
 
+    # Normalization
+    # -------------
+    scaler = StandardScaler()
+    scaler.fit(X_raw)
+    X = scaler.transform(X_raw)
+    
     # Instantiate classifiers
     # -----------------------
     if algo in ["rf", "RandomForest", "RandomForestClassifier"]:
@@ -105,18 +112,27 @@ def train_sblc(
     elif algo in ["ls", "LabelSpreading"]:
         from sklearn.semi_supervised import LabelSpreading
 
-        clf = LabelSpreading(kernel="knn")
+        clf = LabelSpreading(kernel="knn", alpha=0.2)
     else:
         raise ValueError("Not supported algorithm:", algo)
 
     # Fit supervised model
     # ---------------------
-    clf.fit(X_raw, rawlabl)
+    clf.fit(X, rawlabl)
 
     # Exports
     # -----------
     clf.label_identification_ = lablid
     clf.label_long_names_ = lablnames
+    clf.scaler = scaler
+    
+    n_classes = clf.classes_.size
+    centroids = np.zeros((n_classes, X.shape[1]))
+    for k in range(n_classes):
+        idx = np.where(rawlabl==k)[0]
+        centroids[k,:] = np.mean(X[idx,:],axis=0)
+    
+    clf.training_class_centroids_ = centroids
 
     idflabelsname = idflabelspath.split("/")[-1]
     prefx, prepkey, dotnc = idflabelsname.split(".")
@@ -133,7 +149,176 @@ def train_sblc(
     return clf
 
 
-def traintest_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=False):
+def traintest_sblc(
+    idflabelspath,
+    algo,
+    cv_test_size=0.2,
+    n_random_splits=10,
+    plot_on=False,
+):
+    """Train and test the specified algorithm with different configuration
+    
+    
+    Parameters
+    ----------
+    idflabelspath: str
+        Path to the dataset with identified labels
+    
+    algo: str
+        Name of the supervised algorithm to use. Possible choices:
+        {RandomForestClassifier, KNeighborsClassifier, DecisionTreeClassifier,
+        AdaBoostClassifier, LabelSpreading}
+        For more details, refer to the documentation of scikit-learn 0.22
+    
+    cv_test_size: float in ]0,1[, default is 0.2
+        Proportion of the dataset used for testing the algorithm by
+        cross-validation. Must be between 0 and 1.
+    
+    n_random_splits: int, default=10
+        Number of times the random split between test and train is repeated
+    
+    plot_on: bool, default=False
+        If False, all graphics are disabled
+    
+    
+    Returns
+    -------
+    Generate `algo.pkl` object in `outputDir`
+    
+    clf: sklearn Classifier object
+        Trained classifier. To be used with `predict` method
+    
+    
+    Example
+    -------
+    >>> from blcovid.supervisedfit import traintest_sblc
+    >>> inputDir = "../working-directories/3-identified-labels/"
+    >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
+    >>> acc, tic, cl = traintest_sblc(inputDir + idfname, algo ="KNeighborsClassifier")
+    """
+    from sklearn.model_selection import train_test_split
+    
+    max_depth_values = np.arange(2,6)
+    n_estimators_values = np.array([20,50,100])
+    n_neighbors_values = np.array([2,3,6,15])
+    distance_values = ["euclidean", "cityblock", "chebyshev"]
+    max_leaf_nodes_values = np.array([2,3,6,15])
+    alpha_values = np.array([0.1,0.5,0.9])
+    gamma_values = np.array([0.1,2.4,12.7,38,179])
+    
+    classifiers = []
+    classifiers_keys = []
+    
+    if algo in ["rf", "RandomForest", "RandomForestClassifier"]:
+        from sklearn.ensemble import RandomForestClassifier
+        
+        for n in n_estimators_values:
+            for d in max_depth_values:
+                classifiers.append(
+                    RandomForestClassifier(n_estimators=n, max_depth=d)
+                )
+                classifiers_keys.append("RF-n"+str(n)+"-d"+str(d))
+        
+    elif algo in ["knn", "nearestneighbors", "KNeighborsClassifier"]:
+        from sklearn.neighbors import KNeighborsClassifier
+        
+        for kn in n_neighbors_values:
+            for dis in distance_values:
+                classifiers.append(
+                    KNeighborsClassifier(n_neighbors=kn, metric=dis)
+                )
+                classifiers_keys.append(str(kn)+"NN-"+dis[:4])
+        
+    elif algo in ["dt", "DecisionTree", "DecisionTreeClassifier"]:
+        from sklearn.tree import DecisionTreeClassifier
+        
+        for mln in max_leaf_nodes_values:
+            for d in max_depth_values:
+                classifiers.append(
+                    DecisionTreeClassifier(max_depth=d,max_leaf_nodes=mln)
+                )
+                classifiers_keys.append("DT-d"+str(d)+"-mln"+str(mln))
+        
+    elif algo in ["ab", "adab", "AdaBoost", "AdaBoostClassifier"]:
+        from sklearn.ensemble import AdaBoostClassifier
+        from sklearn.tree import DecisionTreeClassifier
+        
+        for n in n_estimators_values:
+            for d in max_depth_values:
+                classifiers.append(
+                    AdaBoostClassifier(
+                        base_estimator=DecisionTreeClassifier(max_depth=d),
+                        n_estimators=n
+                    )
+                )
+                classifiers_keys.append("AB-n"+str(n)+"-d"+str(d))
+        
+    elif algo in ["ls", "LabelSpreading"]:
+        from sklearn.semi_supervised import LabelSpreading
+        
+        for kn in n_neighbors_values:
+            for a in alpha_values:
+                classifiers.append(
+                    LabelSpreading(kernel="knn", n_neighbors=kn, alpha=a)
+                )
+                classifiers_keys.append("LS-"+str(kn)+"nn-a"+str(np.round(a,1)))
+        for g in gamma_values:
+            for a in alpha_values:
+                classifiers.append(
+                    LabelSpreading(kernel="rbf", gamma=g, alpha=a)
+                )
+                classifiers_keys.append("LS-rbf-g"+str(np.round(g,1))+"-a"+str(np.round(a,1)))
+        
+    else:
+        raise ValueError("Not supported algorithm:", algo)
+
+
+    # Load dataset
+    # ------------
+    X_raw, z_common, t_common, rawlabl = utils.load_dataset(
+        idflabelspath, variables_to_load=["X_raw", "altitude", "time", "rawlabels"]
+    )
+    
+    # Normalization
+    # -------------
+    scaler = StandardScaler()
+    scaler.fit(X_raw)
+    X = scaler.transform(X_raw)
+
+    # Summarize performances
+    # ----------------------
+
+    print("TRAINING CLASSIFIERS...")
+    chronos = np.zeros((len(classifiers), n_random_splits))
+    accuracies = np.zeros((len(classifiers), n_random_splits))
+
+    for icl in range(len(classifiers)):
+        clf = classifiers[icl]
+        print("Classifier", icl, "/", len(classifiers), classifiers_keys[icl])
+        for ird in range(n_random_splits):
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_raw, rawlabl, test_size=cv_test_size, random_state=ird
+            )
+
+            t0 = time.time()  #::::::
+            clf.fit(X_train, y_train)
+            accuracies[icl, ird] = clf.score(X_test, y_test)
+            t1 = time.time()  #::::::
+            chronos[icl, ird] = t1 - t0
+
+    if plot_on:
+        graphics.estimator_quality(accuracies, chronos, classifiers_keys)
+
+    # Display the borders
+    # -------------------
+
+    if plot_on:
+        graphics.comparisonSupervisedAlgo(X_raw, classifiers)
+
+    return accuracies, chronos, classifiers_keys
+
+
+def traintestall_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=False):
     """Train and test several algorithms on the specified dataset.
     The outputs are thus the performance of each algorithms.
     
@@ -173,10 +358,10 @@ def traintest_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=
     
     Example
     -------
-    >>> from blcovid.supervisedfit import traintest_sblc
+    >>> from blcovid.supervisedfit import traintestall_sblc
     >>> inputDir = "../working-directories/3-identified-labels/"
     >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
-    >>> acc, tic, cl = traintest_sblc(inputDir + idfname, plot_on=True)
+    >>> acc, tic, cl = traintestall_sblc(inputDir + idfname, plot_on=True)
     TRAINING CLASSIFIERS...
     Classifier 0 / 5 RandomForestClassifier
     Classifier 1 / 5 KNeighborsClassifier
@@ -205,6 +390,12 @@ def traintest_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=
     X_raw, z_common, t_common, rawlabl = utils.load_dataset(
         idflabelspath, variables_to_load=["X_raw", "altitude", "time", "rawlabels"]
     )
+    
+    # Normalization
+    # -------------
+    scaler = StandardScaler()
+    scaler.fit(X_raw)
+    X = scaler.transform(X_raw)
 
     # Instantiate classifiers
     # -----------------------
@@ -215,7 +406,7 @@ def traintest_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_on=
     abc = AdaBoostClassifier(
         base_estimator=DecisionTreeClassifier(max_depth=4), n_estimators=50
     )
-    lsc = LabelSpreading(kernel="knn")
+    lsc = LabelSpreading(kernel="knn", alpha=0.2)
 
     # Summarize performances
     # ----------------------
@@ -277,7 +468,7 @@ if __name__ == "__main__":
         inputDir + idfname, algo="ls", outputDir=outputDir, savePickle=True
     )
 
-    # Test of traintest_sblc
+    # Test of traintestall_sblc
     # ------------------------
-    print("\n --------------- Test of traintest_sblc")
-    acc, tic, cl = traintest_sblc(inputDir + idfname, plot_on=True)
+    print("\n --------------- Test of traintestall_sblc")
+    acc, tic, cl = traintestall_sblc(inputDir + idfname, plot_on=True)
