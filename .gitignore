@@ -1,4 +1,5 @@
 local/*
+working-directories/*
 *.ipynb_checkpoints
 *.idx
 *.egg-info/
