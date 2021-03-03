@@ -28,8 +28,8 @@ from sklearn.preprocessing import StandardScaler
 from scipy.cluster import hierarchy as hc
 from sklearn.cluster import KMeans
 
-from blcovid import utils
-from blcovid import graphics
+from blusc import utils
+from blusc import graphics
 
 
 def ublc(
@@ -80,7 +80,7 @@ def ublc(
     
     Example
     -------
-    >>> from blcovid.unsupervised import ublc
+    >>> from blusc.unsupervised import ublc
     >>> dataDir = "../working-directories/1-unlabelled-datasets/"
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> labels = ublc(dataDir + datasetname,algo="hierarchical-average.cityblock")
@@ -203,7 +203,7 @@ def ublc_manyclusters(datasetpath, algo="hierarchical-average.euclidean", plot_o
     
     Example
     -------
-    >>> from blcovid.unsupervised import ublc_manyclusters
+    >>> from blusc.unsupervised import ublc_manyclusters
     >>> dataDir = "../working-directories/1-unlabelled-datasets/"
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> ch,s,db = ublc_manyclusters(dataDir + datasetname, algo="hierarchical-average.cityblock")
@@ -369,7 +369,7 @@ def ublc_manyalgo(datasetpath, algo_list=None, plot_on=False):
     
     Example
     -------
-    >>> from blcovid.unsupervised import ublc_manyalgo
+    >>> from blusc.unsupervised import ublc_manyalgo
     >>> dataDir = "../working-directories/1-unlabelled-datasets/"
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> ch,s,db,default_algo_list = ublc_manyalgo(dataDir + datasetname)

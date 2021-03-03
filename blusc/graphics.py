@@ -36,7 +36,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from blcovid import utils
+from blusc import utils
 
 
 fmtImages = ".png"
@@ -653,7 +653,7 @@ def cobwebplot_categorical(
     Examples
     --------
     >>> import pandas as pd
-    >>> from blcovid.graphics import cobwebplot_categorical
+    >>> from blusc.graphics import cobwebplot_categorical
     >>> filepath = "../local/AS-DATA_categorical_inputs.txt"
     >>> catg=pd.read_csv(filepath,sep=" ")
     >>> variablesNames = list(catg.columns)
@@ -1012,7 +1012,7 @@ def quicklook(originaldatapath, altmax=4000):
     
     Examples
     --------
-    >>> from blcovid.graphics import quicklook
+    >>> from blusc.graphics import quicklook
     >>> CEI_file = "../working-directories/0-original-data/CEILOMETER/PASSY_PASSY_CNRM_CEILOMETER_CT25K_2015_0219_V01.nc"
     >>> quicklook(CEI_file)
     """

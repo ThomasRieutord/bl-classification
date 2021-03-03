@@ -22,8 +22,8 @@ import datetime as dt
 import time
 import sys
 
-from blcovid import utils
-from blcovid import graphics
+from blusc import utils
+from blusc import graphics
 
 
 def deletelines(X_raw, nan_max=None, return_mask=False, transpose=False, verbose=False):
@@ -440,7 +440,7 @@ def prepdataset(
     
     Examples
     --------
-    >>> from blcovid.prepdataset import prepdataset
+    >>> from blusc.prepdataset import prepdataset
     >>> dataDir = "../working-directories/0-original-data/"
     >>> CEI_file = dataDir + "CEILOMETER/PASSY_PASSY_CNRM_CEILOMETER_CT25K_2015_0219_V01.nc"
     >>> MWR_file = dataDir + "MWR/PASSY2015_SALLANCHES_CNRM_MWR_HATPRO_2015_0219_V01.nc"

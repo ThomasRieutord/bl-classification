@@ -27,8 +27,8 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import pairwise_distances
 
-from blcovid import utils
-from blcovid import graphics
+from blusc import utils
+from blusc import graphics
 
 
 def check_prepkey(datasetpath, classifierpath, raise_error=True):
@@ -57,7 +57,7 @@ def check_prepkey(datasetpath, classifierpath, raise_error=True):
     
     Examples
     --------
-    >>> from blcovid.supervisedpred import check_prepkey
+    >>> from blusc.supervisedpred import check_prepkey
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> goodClassifier = "LabelSpreading.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.pkl"
     >>> badClassifier = "LabelSpreading.PASSY2023_BT-T_linear_dz447_dt0_zmax2577.pkl"
@@ -66,7 +66,7 @@ def check_prepkey(datasetpath, classifierpath, raise_error=True):
     >>> check_prepkey(datasetname, badClassifier)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-      File "../blcovid/supervisedpred.py", line 78, in check_prepkey
+      File "../blusc/supervisedpred.py", line 78, in check_prepkey
         raise ValueError("Preparation of dataset inconsistent with chosen classifier")
     ValueError: Preparation of dataset inconsistent with chosen classifier
     >>> check_prepkey(datasetname, badClassifier, raise_error=False)
@@ -111,7 +111,7 @@ def predict_sblc(datasetpath, classifierpath, plot_on=True):
     
     Examples
     --------
-    >>> from blcovid.supervisedpred import predict_sblc
+    >>> from blusc.supervisedpred import predict_sblc
     >>> dataDir = "../working-directories/1-unlabelled-datasets/"
     >>> classifierDir = "../working-directories/4-pre-trained-classifiers/"
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
@@ -208,7 +208,7 @@ def sblc_evaluation(datasetpath, classifierpath, plot_on=False):
     
     Examples
     --------
-    >>> from blcovid.supervisedpred import sblc_evaluation
+    >>> from blusc.supervisedpred import sblc_evaluation
     >>> dataDir = "../working-directories/1-unlabelled-datasets/"
     >>> classifierDir = "../working-directories/4-pre-trained-classifiers/"
     >>> datasetname = "DATASET_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"

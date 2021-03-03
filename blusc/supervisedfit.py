@@ -23,8 +23,8 @@ import time
 import pickle
 from sklearn.preprocessing import StandardScaler
 
-from blcovid import utils
-from blcovid import graphics
+from blusc import utils
+from blusc import graphics
 
 
 def train_sblc(
@@ -65,7 +65,7 @@ def train_sblc(
     
     Example
     -------
-    >>> from blcovid.supervisedfit import train_sblc
+    >>> from blusc.supervisedfit import train_sblc
     >>> inputDir = "../working-directories/3-identified-labels/"
     >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> clf = train_sblc(inputDir + idfname, algo ="KNeighborsClassifier")
@@ -191,7 +191,7 @@ def traintest_sblc(
     
     Example
     -------
-    >>> from blcovid.supervisedfit import traintest_sblc
+    >>> from blusc.supervisedfit import traintest_sblc
     >>> inputDir = "../working-directories/3-identified-labels/"
     >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> acc, tic, cl = traintest_sblc(inputDir + idfname, algo ="KNeighborsClassifier")
@@ -358,7 +358,7 @@ def traintestall_sblc(idflabelspath, cv_test_size=0.2, n_random_splits=10, plot_
     
     Example
     -------
-    >>> from blcovid.supervisedfit import traintestall_sblc
+    >>> from blusc.supervisedfit import traintestall_sblc
     >>> inputDir = "../working-directories/3-identified-labels/"
     >>> idfname = "IDFLABELS_2015_0219.PASSY2015_BT-T_linear_dz40_dt30_zmax2000.nc"
     >>> acc, tic, cl = traintestall_sblc(inputDir + idfname, plot_on=True)

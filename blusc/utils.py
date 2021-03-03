@@ -56,7 +56,7 @@ def add_idlabels_to_netcdf(
     
     Notes
     -----
-    Called by blcovid.blindentification
+    Called by blusc.blindentification
     """
 
     create_file_from_source(inputFile, outputFile)
@@ -100,7 +100,7 @@ def add_rawlabels_to_netcdf(inputFile, outputFile, labels, quiet=False):
     
     Notes
     -----
-    Called by blcovid.unsupervised.ublc
+    Called by blusc.unsupervised.ublc
     """
 
     create_file_from_source(inputFile, outputFile)

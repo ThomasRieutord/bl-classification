@@ -27,11 +27,11 @@ import datetime as dt
 import pickle
 
 
-from blcovid import utils
-from blcovid import graphics
-from blcovid.prepdataset import prepdataset
-from blcovid.unsupervised import ublc, ublc_manyclusters
-from blcovid.supervisedpred import predict_sblc, sblc_evaluation
+from blusc import utils
+from blusc import graphics
+from blusc.prepdataset import prepdataset
+from blusc.unsupervised import ublc, ublc_manyclusters
+from blusc.supervisedpred import predict_sblc, sblc_evaluation
 
 
 def scandate_inv(
@@ -169,7 +169,7 @@ def unsupervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import unsupervised_path
+    >>> from blusc.multidays import unsupervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
     >>> CEI_file = CEI_dir+"PASSY_PASSY_CNRM_CEILOMETER_CT25K_2015_0219_V01.nc"
@@ -301,7 +301,7 @@ def supervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import supervised_path
+    >>> from blusc.multidays import supervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
     >>> CEI_file = CEI_dir+"PASSY_PASSY_CNRM_CEILOMETER_CT25K_2015_0219_V01.nc"
@@ -407,7 +407,7 @@ def plotloop_unsupervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import loop_unsupervised_path
+    >>> from blusc.multidays import loop_unsupervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
     >>> plotloop_unsupervised_path(CEI_dir, MWR_dir)
@@ -491,7 +491,7 @@ def plotloop_supervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import plotloop_supervised_path
+    >>> from blusc.multidays import plotloop_supervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
     >>> plotloop_supervised_path(CEI_dir, MWR_dir)
@@ -579,7 +579,7 @@ def evalloop_supervised_path(
     
     Examples
     --------
-    >>> from blcovid.multidays import evalloop_supervised_path
+    >>> from blusc.multidays import evalloop_supervised_path
     >>> CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
     >>> MWR_dir = "../working-directories/0-original-data/MWR/"
     >>> evalloop_supervised_path(CEI_dir, MWR_dir)

@@ -19,8 +19,8 @@ import os
 import numpy as np
 import datetime as dt
 
-from blcovid import utils
-from blcovid import graphics
+from blusc import utils
+from blusc import graphics
 
 graphics.storeImages = False
 
