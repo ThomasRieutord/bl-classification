@@ -562,7 +562,7 @@ def clusterZTview_manyclusters(
 
         # 4. Graphic
         plt.subplot(nl, nc, ink + 1)
-        im = plt.pcolormesh(t_values, z_values, labels.T, vmin=0, vmax=K, cmap=colormap)
+        im = plt.pcolormesh(t_values, z_values, labels.T, vmin=0, vmax=K, cmap=colormap, shading="auto")
         plt.text(t_values[-7], z_values[-4], count2letter[ink], fontweight='bold', fontsize=16)
         plt.gcf().autofmt_xdate()
 
@@ -807,7 +807,7 @@ def comparisonSupervisedAlgo(X_raw, classifiers, resolution=50):
         b, t, y = utils.scatter_to_grid(X_pred, y_pred)
 
         axs[icl].set_title(classifiers_keys[icl])
-        axs[icl].pcolormesh(BT_values, T_values, y.T, vmin=-0.5, cmap="nipy_spectral")
+        axs[icl].pcolormesh(BT_values, T_values, y.T, vmin=-0.5, cmap="nipy_spectral", shading="auto")
 
         axs[icl].plot(X_raw[:, 0], X_raw[:, 1], "k.")
         axs[icl].set_xlabel(DicLeg["BT"])
