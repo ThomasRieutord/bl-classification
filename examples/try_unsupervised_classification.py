@@ -17,8 +17,8 @@ import numpy as np
 import datetime as dt
 
 # Local packages
-from blcovid import graphics
-from blcovid import multidays
+from blusc import graphics
+from blusc import multidays
 
 CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
 MWR_dir = "../working-directories/0-original-data/MWR/"
@@ -29,7 +29,7 @@ outputDir = ""
 algo="hierarchical-average.euclidean"
 target_nb_clusters='auto'
 
-graphics.storeImages=True
+graphics.storeImages=False
 graphics.figureDir = outputDir
 
 multidays.unsupervised_path(CEI_file, MWR_file, algo=algo, target_nb_clusters=target_nb_clusters, outputDir=outputDir)

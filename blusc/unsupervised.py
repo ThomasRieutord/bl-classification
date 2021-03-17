@@ -152,14 +152,14 @@ def ublc(
         graphics.clusterZTview(
             t_common, z_common, zoneID, fileName="UBLC_timeAlti_" + prefx[-9:]
         )
-        graphics.cluster2Dview(
-            X_raw[:, 0],
-            predictors[0],
-            X_raw[:, 1],
-            predictors[1],
-            zoneID,
-            fileName="UBLC_featureSpace_" + prefx[-9:],
-        )
+        # graphics.cluster2Dview(
+            # X_raw[:, 0],
+            # predictors[0],
+            # X_raw[:, 1],
+            # predictors[1],
+            # zoneID,
+            # fileName="UBLC_featureSpace_" + prefx[-9:],
+        # )
 
     # Write labels in netCDF
     # ----------------------

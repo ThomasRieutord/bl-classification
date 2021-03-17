@@ -445,7 +445,7 @@ def clusterZTview(
     # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
     fig = plt.figure()
     # plt.title(titl)
-    plt.pcolormesh(t_values, z_values, labels.T, vmin=0, vmax=K, cmap=colormap)
+    plt.pcolormesh(t_values, z_values, labels.T, vmin=0, vmax=K, cmap=colormap, shading = "auto")
     if displayClustersIDs:
         for k in np.unique(zoneID):
             idxk = np.where(zoneID == k)[0]
@@ -1056,7 +1056,7 @@ def quicklook(originaldatapath, altmax=4000):
 
     plt.figure()
     plt.title(titl)
-    plt.pcolormesh(t, z, V.T, vmin=valmin, vmax=valmax, cmap=colormp)
+    plt.pcolormesh(t, z, V.T, vmin=valmin, vmax=valmax, cmap=colormp,shading="auto")
     plt.colorbar(label=clabl)
     plt.gcf().autofmt_xdate()
     plt.xlabel("Time (UTC)")
@@ -1101,7 +1101,7 @@ def quicklook_dataset(datasetpath, altmax=4000):
         
         plt.figure()
         # plt.title("Variable "+str(p)+" of dataset")
-        plt.pcolormesh(t, z, V.T)
+        plt.pcolormesh(t, z, V.T, shading="auto")
         plt.colorbar()
         plt.gcf().autofmt_xdate()
         plt.xlabel("Time (UTC)")

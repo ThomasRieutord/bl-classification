@@ -16,8 +16,8 @@ import numpy as np
 import datetime as dt
 
 # Local packages
-from blcovid import multidays
-from blcovid import graphics
+from blusc import multidays
+from blusc import graphics
 
 CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
 MWR_dir = "../working-directories/0-original-data/MWR/"
@@ -27,7 +27,7 @@ MWR_file = MWR_dir+"PASSY2015_SALLANCHES_CNRM_MWR_HATPRO_2015_0219_V01.nc"
 outputDir = ""
 algo="LabelSpreading"
 
-graphics.storeImages=True
+graphics.storeImages=False
 graphics.figureDir = outputDir
 
 multidays.supervised_path(CEI_file, MWR_file, algo=algo, outputDir=outputDir)

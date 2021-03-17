@@ -455,10 +455,13 @@ def prepdataset(
         raise ValueError("Original data file do not have the same date")
 
     # setup toolbar
-    toolbar_width = 7
-    sys.stdout.write("Prep. data: [%s]" % ("." * toolbar_width))
-    sys.stdout.flush()
-    sys.stdout.write("\b" * (toolbar_width + 1))  # return to start of line, after '['
+    if verbose:
+        print("Entering function ",__name__,"with 9 checkpoints")
+    else:
+        toolbar_width = 7
+        sys.stdout.write("Prep. data: [%s]" % ("." * toolbar_width))
+        sys.stdout.flush()
+        sys.stdout.write("\b" * (toolbar_width + 1))  # return to start of line, after '['
 
     # EXTRACTION
     # ============
@@ -466,11 +469,20 @@ def prepdataset(
     # Raw data
     # ----------
     t_cei, z_cei, backscatter = utils.extractOrigData(CEI_file, altmax=z_max)
-    sys.stdout.write("*")
-    sys.stdout.flush()
+    if verbose:
+        print("\n[1/9] Extraction of backscatter: DONE")
+        print("backscatter.shape=",backscatter.shape)
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
+    
     t_mwr, z_mwr, temperature = utils.extractOrigData(MWR_file, altmax=z_max)
-    sys.stdout.write("*")
-    sys.stdout.flush()
+    if verbose:
+        print("\n[2/9] Extraction of temperature: DONE")
+        print("temperature.shape=",temperature.shape)
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
     # NB: here the backscatter signal is raw, it is NOT in decibel.
 
     # Dismiss obvious outliers
@@ -486,7 +498,8 @@ def prepdataset(
     # Sanity checks
     # ---------------
     if verbose:
-        print("\n--- CEILOMETER ---")
+        print("\n[3/9] Sanity checks")
+        print("--- CEILOMETER ---")
         print("Size=", np.size(backscatter))
         print(
             "Percentage of NaN=",
@@ -522,7 +535,7 @@ def prepdataset(
             np.shape(backscatter),
         )
         print("------")
-        print("\n--- RADIOMETER ---")
+        print("--- RADIOMETER ---")
         print("Size=", np.size(temperature))
         print(
             "Percentage of NaN=",
@@ -552,13 +565,14 @@ def prepdataset(
             np.shape(temperature),
         )
         print("------")
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
 
     if plot_on:
         graphics.quicklook(CEI_file, altmax=z_max)
         graphics.quicklook(MWR_file, altmax=z_max)
 
-    sys.stdout.write("*")
-    sys.stdout.flush()
 
     # INTERPOLATION
     # ===============
@@ -567,7 +581,7 @@ def prepdataset(
     # --------------
     day = utils.scandate(CEI_file)
 
-    if dz_common == "MWR":
+    if dz_common == "MWR" or dt_common == "MWR":
         # Autre alternative : prendre une grille existante.
         z_common, t_common = z_mwr, t_mwr
     else:
@@ -577,7 +591,10 @@ def prepdataset(
         z_common, t_common = generategrid(
             t_min, t_max, z_max, dz_common, dt_common, z_min
         )
-
+    
+    if verbose:
+        print("\n[4/9] Grid generation: DONE")
+        print("z_common.shape=",z_common.shape, "len(t_common)=",len(t_common))
     sys.stdout.write("*")
     sys.stdout.flush()
 
@@ -593,37 +610,41 @@ def prepdataset(
         T_query = estimateongrid(
             z_common, t_common, z_mwr, t_mwr, temperature, method=interpMethod
         )
-    sys.stdout.write("*")
-    sys.stdout.flush()
-
     if verbose:
+        print("\n[5/9] Interpolation of temperature: DONE")
+        print("T_query.shape=",T_query.shape)
         with np.errstate(invalid="ignore"):
             print(
-                " - T_query - #NaN=",
+                "#NaN=",
                 np.sum(np.isnan(T_query)),
                 "#Inf=",
                 np.sum(np.isinf(T_query)),
                 "#Neg=",
                 np.sum(T_query <= 0),
             )
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
 
     # Ceilometer
     BT_query = estimateongrid(
         z_common, t_common, z_cei, t_cei, backscatter, method=interpMethod
     )
-    sys.stdout.write("*")
-    sys.stdout.flush()
-
     if verbose:
+        print("\n[6/9] Interpolation of temperature: DONE")
+        print("BT_query.shape=",BT_query.shape)
         with np.errstate(invalid="ignore"):
             print(
-                " - BT_query - #NaN=",
+                "#NaN=",
                 np.sum(np.isnan(BT_query)),
                 "#Inf=",
                 np.sum(np.isinf(BT_query)),
                 "#Neg=",
                 np.sum(BT_query <= 0),
             )
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
 
     # Shape the data
     # ---------------
@@ -643,31 +664,51 @@ def prepdataset(
     T = T_query[:, ~np.logical_or(mask_T, mask_BT)]
     BT = BT_query[:, ~np.logical_or(mask_T, mask_BT)]
 
-    # Add altitude in predictors (optional)
+    # Concatenate predictors
+    # ----------------------
+    if verbose:
+        print("\n[7/9] Concatenate predictors ",predictors)
+    preX = []
+    if "BT" in predictors:
+        preX.append(BT.ravel())
+        if verbose:
+            print("Add BT")
+    if "T" in predictors:
+        preX.append(T.ravel())
+        if verbose:
+            print("Add T")
     if "Z" in predictors:
-        X_raw = np.array(
-            [BT.ravel(), T.ravel(), np.tile(z_common, (T.shape[0], 1)).ravel()]
-        ).T
-    else:
-        X_raw = np.array([BT.ravel(), T.ravel()]).T
+        preX.append(np.tile(z_common, (T.shape[0], 1)).ravel())
+        if verbose:
+            print("Add Z")
+    
+    X_raw = np.array(preX).T
+    
+    # # Add altitude in predictors (optional)
+    # if "Z" in predictors:
+        # X_raw = np.array(
+            # [BT.ravel(), T.ravel(), np.tile(z_common, (T.shape[0], 1)).ravel()]
+        # ).T
+    # else:
+        # X_raw = np.array([BT.ravel(), T.ravel()]).T
 
     # Sanity checks
     if verbose:
-        print("\nInvalid values after removing bad boundaries:")
+        print("\n[8/9] Final check")
+        print("shape(X_raw)=", X_raw.shape)
         with np.errstate(invalid="ignore"):
             print(
-                " - X_raw - #NaN=",
+                "#NaN=",
                 np.sum(np.isnan(X_raw)),
                 "#Inf=",
                 np.sum(np.isinf(X_raw)),
                 "#Neg=",
                 np.sum(X_raw <= 0),
             )
-        print("shape(X_raw)=", X_raw.shape)
-
-    sys.stdout.write("*")
-    sys.stdout.flush()
-
+    else:
+        sys.stdout.write("*")
+        sys.stdout.flush()
+    
     # Write dataset in netcdf file
     # ------------------------------
     # The matrix X_raw is stored with the names of its columns and the grid on which is has been estimated.
@@ -689,8 +730,13 @@ def prepdataset(
 
     n_invalidValues = np.sum(np.isnan(X_raw)) + np.sum(np.isinf(X_raw))
 
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    if verbose:
+        print("\n[9/9] Exiting",__name__,"with")
+        print("prepkey =",prepkey)
+        print("n_invalidValues =",n_invalidValues)
+    else:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
     if saveNetcdf and n_invalidValues == 0:
         msg = write_dataset(outputDir + datasetname, X_raw, t_common, z_common)
