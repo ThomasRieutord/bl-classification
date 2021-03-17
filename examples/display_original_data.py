@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-PERFORM SUPERVISED BOUNDARY LAYER CLASSIFICATION ON ALL AVAILABLE DAYS
+DISPLAY ORIGINAL DATA FOR BOUNDARY LAYER CLASSIFICATION
 
  +-----------------------------------------+
- |  Date of creation: 14 Apr. 2020         |
+ |  Date of creation: 17 Mar. 2021         |
  +-----------------------------------------+
  |  Meteo-France                           |
  |  CNRM/GMEI/LISA                         |
  +-----------------------------------------+
+
 """
 
 import os
@@ -16,9 +17,8 @@ import numpy as np
 import datetime as dt
 
 # Local packages
-from blusc import multidays
 from blusc import graphics
-
+from blusc import multidays
 
 # Parametrisation
 # -----------------
@@ -31,22 +31,22 @@ graphics.storeImages = False
 graphics.fmtImages = ".svg"
 graphics.figureDir = "../tmpout/"
 
-### Algo
-algo = "KNeighborsClassifier"
-
 ### Paths
 CEI_dir = "../working-directories/0-original-data/CEILOMETER/"
 MWR_dir = "../working-directories/0-original-data/MWR/"
-CEI_file = os.path.join(
-    CEI_dir, "PASSY_PASSY_CNRM_CEILOMETER_CT25K_" + day.strftime("%Y_%m%d") + "_V01.nc"
+CEI_file = (
+    CEI_dir + "PASSY_PASSY_CNRM_CEILOMETER_CT25K_" + day.strftime("%Y_%m%d") + "_V01.nc"
 )
-MWR_file = os.path.join(
-    MWR_dir,
-    "PASSY2015_SALLANCHES_CNRM_MWR_HATPRO_" + day.strftime("%Y_%m%d") + "_V01.nc",
+MWR_file = (
+    MWR_dir
+    + "PASSY2015_SALLANCHES_CNRM_MWR_HATPRO_"
+    + day.strftime("%Y_%m%d")
+    + "_V01.nc"
 )
 
 
 # Execution
 # -----------
 
-multidays.supervised_path(CEI_file, MWR_file, algo=algo)
+graphics.quicklook(CEI_file)
+graphics.quicklook(MWR_file)
