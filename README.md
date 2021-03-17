@@ -39,14 +39,11 @@ If you do not have `conda`, you can download it [here](https://docs.conda.io/pro
 The advantage of using `conda` the way described here is to isolate the python configuration needed for BL classification from the rest your current configuration.
 
 ```bash
-conda create -n blusc python=3.7   # Create a new environnement with Python 3.7
-conda activate blusc               # Enter this environment
+conda env create -f condaenv.yml
+conda activate test_blusc               # Enter this environment
 ```
 
-Now the text "(blusc)" should appear before your prompt
-```
-conda install --file requirements.txt
-```
+Now the text "(test_blusc)" should appear before your prompt
 
 ### With pip
 For an installation with `pip`, follow these instructions:
@@ -63,17 +60,9 @@ In the directory where is the `setup.py`, run:
 pip install -e .
 ```
 
-Alternative installation
--------------------------
-If the previous methods do not work, try to reproduce the environment from the `blcovid-explicit-env.txt` file:
-```bash
-conda create --name blusc --file blusc-explicit-env.txt
-```
-This method is usually not cross platform, but it gives an alternative way of installation.
-
 Use BLUSC 
 ---------
-Once the installation is ready (prompt should display `(blusc)` if you are using conda), you can execute the ready-to-use script in the `examples` directory.
+Once the installation is ready (prompt should display `(test_blusc)` if you are using conda), you can execute the ready-to-use script in the `examples` directory.
 For example, to execute data preparation and unsupervised classification run:
 ```bash
 python try_unsupervised_classification.py

@@ -1,0 +1,12 @@
+name: test_blusc 
+channels:
+  - conda-forge
+  - anaconda 
+dependencies:
+  - python>=3.6.0
+  - numpy
+  - scipy
+  - matplotlib
+  - netCDF4
+  - notebook
+  - scikit-learn>=0.22
